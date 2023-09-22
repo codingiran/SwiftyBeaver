@@ -94,7 +94,7 @@ open class BaseDestination: Hashable, Equatable {
     var debugPrint = false // set to true to debug the internal filter logic of the class
 
     /// label of Destination
-    let label: String
+    public let label: String
 
     public init(label: String = UUID().uuidString) {
         self.label = label
@@ -102,7 +102,7 @@ open class BaseDestination: Hashable, Equatable {
         queue = DispatchQueue(label: queueLabel, target: queue)
     }
     
-    func isMatch(_ destination: String) -> Bool {
+    open func isMatch(_ destination: String) -> Bool {
         return label == destination
     }
 
