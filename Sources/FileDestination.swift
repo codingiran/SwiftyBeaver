@@ -49,10 +49,10 @@ open class FileDestination: BaseDestination {
     let fileManager = FileManager.default
 
 
-    public init(logFileURL: URL? = nil) {
+    public init(logFileURL: URL? = nil, label: String = UUID().uuidString) {
         if let logFileURL = logFileURL {
             self.logFileURL = logFileURL
-            super.init()
+            super.init(label: label)
             return
         }
 

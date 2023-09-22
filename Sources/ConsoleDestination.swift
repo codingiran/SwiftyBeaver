@@ -41,8 +41,8 @@ open class ConsoleDestination: BaseDestination {
 
     override public var defaultHashValue: Int { return 1 }
 
-    public override init() {
-        super.init()
+    public override init(label: String = UUID().uuidString) {
+        super.init(label: label)
         levelColor.verbose = "💜 "     // silver
         levelColor.debug = "💚 "        // green
         levelColor.info = "💙 "         // blue

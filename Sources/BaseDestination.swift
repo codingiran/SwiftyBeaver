@@ -93,10 +93,17 @@ open class BaseDestination: Hashable, Equatable {
     var queue: DispatchQueue? //dispatch_queue_t?
     var debugPrint = false // set to true to debug the internal filter logic of the class
 
-    public init() {
-        let uuid = NSUUID().uuidString
-        let queueLabel = "swiftybeaver-queue-" + uuid
+    /// label of Destination
+    let label: String
+
+    public init(label: String = UUID().uuidString) {
+        self.label = label
+        let queueLabel = "swiftybeaver-queue-" + label
         queue = DispatchQueue(label: queueLabel, target: queue)
+    }
+    
+    func isMatch(_ destination: String) -> Bool {
+        return label == destination
     }
 
     /// send / store the formatted log message to the destination
