@@ -38,6 +38,8 @@ open class FileDestination: BaseDestination {
         }
     }
     
+    public var addtionFileHandle: FileHandle?
+    
     // LOGFILE ROTATION
     // ho many bytes should a logfile have until it is rotated?
     // default is 5 MB. Just is used if logFileAmount > 1
@@ -121,6 +123,7 @@ open class FileDestination: BaseDestination {
                 }
             }
         }
+        validateAddtionFileHandle()
         return saveToFile(str: str)
     }
     
@@ -200,18 +203,10 @@ open class FileDestination: BaseDestination {
                 }
 
                 let fileHandle = try FileHandle(forWritingTo: url)
-                fileHandle.seekToEndOfFile()
-                if #available(iOS 13.4, watchOS 6.2, tvOS 13.4, macOS 10.15.4, *) {
-                    try fileHandle.write(contentsOf: data)
-                } else {
-                    fileHandle.write(data)
-                }
-                if syncAfterEachWrite {
-                    fileHandle.synchronizeFile()
-                }
-                fileHandle.closeFile()
-                success = true
+                success = try write(data: data, toFileHandle: fileHandle)
+                writeAddtionFileHandle(data: data)
             } catch {
+                success = false
                 print("SwiftyBeaver File Destination could not write to file \(url).")
             }
         }
@@ -224,6 +219,33 @@ open class FileDestination: BaseDestination {
         return success
         #endif
     }
+    
+    @discardableResult
+    private func write(data: Data, toFileHandle fileHandle: FileHandle) throws -> Bool {
+    #if os(Linux)
+        return true
+    #else
+        guard fileHandle.isRegularFile else {
+            return false
+        }
+        if #available(iOS 13.4, watchOS 6.2, tvOS 13.4, macOS 10.15.4, *) {
+            try fileHandle.seekToEnd()
+            try fileHandle.write(contentsOf: data)
+            if syncAfterEachWrite {
+                try fileHandle.synchronize()
+            }
+            try fileHandle.close()
+        } else {
+            fileHandle.seekToEndOfFile()
+            fileHandle.write(data)
+            if syncAfterEachWrite {
+                fileHandle.synchronizeFile()
+            }
+            fileHandle.closeFile()
+        }
+        return true
+    #endif
+    }
 
     /// deletes log file.
     /// returns true if file was removed or does not exist, false otherwise
@@ -235,6 +257,35 @@ open class FileDestination: BaseDestination {
         } catch {
             print("SwiftyBeaver File Destination could not remove file \(url).")
             return false
+        }
+    }
+}
+
+// MARK: - AddtionFileHandle
+
+extension FileDestination {
+    private func writeAddtionFileHandle(data: Data) {
+        guard let addtionFileHandle = addtionFileHandle
+        else { return }
+        do {
+            try write(data: data, toFileHandle: addtionFileHandle)
+        } catch {
+            print("SwiftyBeaver File Destination could not write to addtionFileHandle: \(String(describing: error)).")
+        }
+    }
+
+    private func validateAddtionFileHandle() {
+        guard let addtionFileHandle = addtionFileHandle else { return }
+        let addtionFileSize = addtionFileHandle.getSize()
+        guard addtionFileSize > logFileMaxSize else { return }
+        if #available(iOS 13.0, watchOS 6.0, tvOS 13.0, macOS 10.15, *) {
+            do {
+                try addtionFileHandle.truncate(atOffset: 0)
+            } catch {
+                print("SwiftyBeaver File Destination could not truncate addtionFileHandle: \(String(describing: error)).")
+            }
+        } else {
+            addtionFileHandle.truncateFile(atOffset: 0)
         }
     }
 }
