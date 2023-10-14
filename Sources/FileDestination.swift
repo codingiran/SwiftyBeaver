@@ -39,7 +39,7 @@ open class FileDestination: BaseDestination {
     }
     
     public var addtionFileHandle: FileHandle?
-    private let accessQueue = DispatchQueue(label: "com.swiftyBeaver.addtionFileHandle.queue")
+    private lazy var accessQueue = DispatchQueue(label: "com.swiftyBeaver.addtionFileHandle.accessQueue")
     
     // LOGFILE ROTATION
     // ho many bytes should a logfile have until it is rotated?
