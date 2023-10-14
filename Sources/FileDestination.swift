@@ -123,7 +123,7 @@ open class FileDestination: BaseDestination {
                 }
             }
         }
-        validateAddtionFileHandle()
+//        validateAddtionFileHandle()
         return saveToFile(str: str)
     }
     
