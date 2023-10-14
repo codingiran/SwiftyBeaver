@@ -39,6 +39,7 @@ open class FileDestination: BaseDestination {
     }
     
     public var addtionFileHandle: FileHandle?
+    private let accessQueue = DispatchQueue(label: "com.swiftyBeaver.addtionFileHandle.queue", attributes: .concurrent)
     
     // LOGFILE ROTATION
     // ho many bytes should a logfile have until it is rotated?
@@ -123,7 +124,7 @@ open class FileDestination: BaseDestination {
                 }
             }
         }
-//        validateAddtionFileHandle()
+        validateAddtionFileHandle()
         return saveToFile(str: str)
     }
     
@@ -177,6 +178,7 @@ open class FileDestination: BaseDestination {
         #if os(Linux)
             return true
         #else
+        writeAddtionFileHandle(data: data)
         var success = false
         let coordinator = NSFileCoordinator(filePresenter: nil)
         var error: NSError?
@@ -204,7 +206,6 @@ open class FileDestination: BaseDestination {
 
                 let fileHandle = try FileHandle(forWritingTo: url)
                 success = try write(data: data, toFileHandle: fileHandle)
-                writeAddtionFileHandle(data: data)
             } catch {
                 success = false
                 print("SwiftyBeaver File Destination could not write to file \(url).")
@@ -225,9 +226,6 @@ open class FileDestination: BaseDestination {
     #if os(Linux)
         return true
     #else
-        guard fileHandle.isRegularFile else {
-            return false
-        }
         if #available(iOS 13.4, watchOS 6.2, tvOS 13.4, macOS 10.15.4, *) {
             try fileHandle.seekToEnd()
             try fileHandle.write(contentsOf: data)
@@ -265,27 +263,30 @@ open class FileDestination: BaseDestination {
 
 extension FileDestination {
     private func writeAddtionFileHandle(data: Data) {
-        guard let addtionFileHandle = addtionFileHandle
-        else { return }
-        do {
-            try write(data: data, toFileHandle: addtionFileHandle)
-        } catch {
-            print("SwiftyBeaver File Destination could not write to addtionFileHandle: \(String(describing: error)).")
+        accessQueue.sync {
+            guard let addtionFileHandle = self.addtionFileHandle, addtionFileHandle.isRegularFile else { return }
+            do {
+                try self.write(data: data, toFileHandle: addtionFileHandle)
+            } catch {
+                print("SwiftyBeaver File Destination could not write to addtionFileHandle: \(String(describing: error)).")
+            }
         }
     }
 
     private func validateAddtionFileHandle() {
-        guard let addtionFileHandle = addtionFileHandle else { return }
-        let addtionFileSize = addtionFileHandle.getSize()
-        guard addtionFileSize > logFileMaxSize else { return }
-        if #available(iOS 13.0, watchOS 6.0, tvOS 13.0, macOS 10.15, *) {
-            do {
-                try addtionFileHandle.truncate(atOffset: 0)
-            } catch {
-                print("SwiftyBeaver File Destination could not truncate addtionFileHandle: \(String(describing: error)).")
+        accessQueue.sync {
+            guard let addtionFileHandle = self.addtionFileHandle else { return }
+            let addtionFileSize = addtionFileHandle.getSize()
+            guard addtionFileSize > self.logFileMaxSize else { return }
+            if #available(iOS 13.0, watchOS 6.0, tvOS 13.0, macOS 10.15, *) {
+                do {
+                    try addtionFileHandle.truncate(atOffset: 0)
+                } catch {
+                    print("SwiftyBeaver File Destination could not truncate addtionFileHandle: \(String(describing: error)).")
+                }
+            } else {
+                addtionFileHandle.truncateFile(atOffset: 0)
             }
-        } else {
-            addtionFileHandle.truncateFile(atOffset: 0)
         }
     }
 }
