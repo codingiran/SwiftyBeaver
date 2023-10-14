@@ -267,8 +267,8 @@ open class FileDestination: BaseDestination {
 
 extension FileDestination {
     private func validateAddtionFileHandle() {
+        guard let addtionFileHandle = addtionFileHandle else { return }
         accessQueue.sync {
-            guard let addtionFileHandle = self.addtionFileHandle else { return }
             let addtionFileSize = addtionFileHandle.getSize()
             guard addtionFileSize > self.logFileMaxSize else { return }
             if #available(iOS 13.0, watchOS 6.0, tvOS 13.0, macOS 10.15, *) {
@@ -284,8 +284,8 @@ extension FileDestination {
     }
 
     private func writeAddtionFileHandle(data: Data) {
+        guard let addtionFileHandle = addtionFileHandle else { return }
         accessQueue.sync {
-            guard let addtionFileHandle = self.addtionFileHandle else { return }
             do {
                 try self.write(data: data, toFileHandle: addtionFileHandle, closeWhenFinish: false)
             } catch {
