@@ -124,7 +124,7 @@ open class FileDestination: BaseDestination {
                 }
             }
         }
-        validateAddtionFileHandle()
+//        validateAddtionFileHandle()
         return saveToFile(str: str)
     }
     
@@ -263,18 +263,18 @@ open class FileDestination: BaseDestination {
 
 extension FileDestination {
     private func writeAddtionFileHandle(data: Data) {
-        accessQueue.sync {
-            guard let addtionFileHandle = self.addtionFileHandle, addtionFileHandle.isRegularFile else { return }
+//        accessQueue.sync {
+            guard let addtionFileHandle = self.addtionFileHandle else { return }
             do {
                 try self.write(data: data, toFileHandle: addtionFileHandle)
             } catch {
                 print("SwiftyBeaver File Destination could not write to addtionFileHandle: \(String(describing: error)).")
             }
-        }
+//        }
     }
 
     private func validateAddtionFileHandle() {
-        accessQueue.sync {
+//        accessQueue.sync {
             guard let addtionFileHandle = self.addtionFileHandle else { return }
             let addtionFileSize = addtionFileHandle.getSize()
             guard addtionFileSize > self.logFileMaxSize else { return }
@@ -287,6 +287,6 @@ extension FileDestination {
             } else {
                 addtionFileHandle.truncateFile(atOffset: 0)
             }
-        }
+//        }
     }
 }
