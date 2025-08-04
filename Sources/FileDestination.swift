@@ -40,6 +40,11 @@ open class FileDestination: BaseDestination, @unchecked Sendable {
     public var addtionFileHandle: FileHandle?
     private lazy var accessQueue = DispatchQueue(label: "com.swiftyBeaver.addtionFileHandle.accessQueue")
 
+    /// Controls whether to use NSFileCoordinator for file access coordination.
+    /// Set to true for document-based apps, app extensions, or iCloud scenarios (default).
+    /// Set to false for better performance in simple logging scenarios.
+    public var useFileCoordination: Bool = true
+
     // LOGFILE ROTATION
     // ho many bytes should a logfile have until it is rotated?
     // default is 5 MB. Just is used if logFileAmount > 1
@@ -123,7 +128,9 @@ open class FileDestination: BaseDestination, @unchecked Sendable {
                 }
             }
         }
-        validateAddtionFileHandle()
+        if let addtionFileHandle {
+            validateAddtionFileHandle(addtionFileHandle)
+        }
         return saveToFile(str: str)
     }
 
@@ -176,46 +183,71 @@ open class FileDestination: BaseDestination, @unchecked Sendable {
         #if os(Linux)
             return true
         #else
-            var success = false
-            let coordinator = NSFileCoordinator(filePresenter: nil)
-            var error: NSError?
-            coordinator.coordinate(writingItemAt: url, error: &error) { url in
-                do {
-                    if fileManager.fileExists(atPath: url.path) == false {
-                        let directoryURL = url.deletingLastPathComponent()
-                        if fileManager.fileExists(atPath: directoryURL.path) == false {
-                            try fileManager.createDirectory(
-                                at: directoryURL,
-                                withIntermediateDirectories: true
-                            )
-                        }
-                        fileManager.createFile(atPath: url.path, contents: nil)
+            if useFileCoordination {
+                return writeWithCoordination(data: data, to: url)
+            } else {
+                return writeDirectly(data: data, to: url)
+            }
+        #endif
+    }
 
-                        #if os(iOS) || os(watchOS)
-                            if #available(iOS 10.0, watchOS 3.0, *) {
-                                var attributes = try fileManager.attributesOfItem(atPath: url.path)
-                                attributes[FileAttributeKey.protectionKey] = FileProtectionType.none
-                                try fileManager.setAttributes(attributes, ofItemAtPath: url.path)
-                            }
-                        #endif
-                    }
+    /// Writes data to file using NSFileCoordinator for cross-process safety
+    private func writeWithCoordination(data: Data, to url: URL) -> Bool {
+        var success = false
+        let coordinator = NSFileCoordinator(filePresenter: nil)
+        var error: NSError?
+        coordinator.coordinate(writingItemAt: url, error: &error) { url in
+            success = performFileWrite(data: data, to: url)
+        }
 
-                    let fileHandle = try FileHandle(forWritingTo: url)
-                    success = try write(data: data, toFileHandle: fileHandle)
-                    writeAddtionFileHandle(data: data)
-                } catch {
-                    success = false
-                    print("SwiftyBeaver File Destination could not write to file \(url).")
+        if let error = error {
+            print("Failed writing file with error: \(String(describing: error))")
+            return false
+        }
+
+        return success
+    }
+
+    /// Writes data to file directly without coordination for better performance
+    private func writeDirectly(data: Data, to url: URL) -> Bool {
+        return performFileWrite(data: data, to: url)
+    }
+
+    /// Performs the actual file write operation
+    private func performFileWrite(data: Data, to url: URL) -> Bool {
+        do {
+            if fileManager.fileExists(atPath: url.path) == false {
+                let directoryURL = url.deletingLastPathComponent()
+                if fileManager.fileExists(atPath: directoryURL.path) == false {
+                    try fileManager.createDirectory(
+                        at: directoryURL,
+                        withIntermediateDirectories: true
+                    )
                 }
+                _ = fileManager.createFile(atPath: url.path, contents: nil)
+
+                #if os(iOS) || os(watchOS)
+                    if #available(iOS 10.0, watchOS 3.0, *) {
+                        var attributes = try fileManager.attributesOfItem(atPath: url.path)
+                        attributes[FileAttributeKey.protectionKey] = FileProtectionType.none
+                        try fileManager.setAttributes(attributes, ofItemAtPath: url.path)
+                    }
+                #endif
             }
 
-            if let error = error {
-                print("Failed writing file with error: \(String(describing: error))")
-                return false
+            let fileHandle = try FileHandle(forWritingTo: url)
+            let success = try write(data: data, toFileHandle: fileHandle)
+
+            // Write to addtionFileHandle
+            if let addtionFileHandle {
+                writeData(data, toAddtionFileHandle: addtionFileHandle)
             }
 
             return success
-        #endif
+        } catch {
+            print("SwiftyBeaver File Destination could not write to file \(url).")
+            return false
+        }
     }
 
     @discardableResult
@@ -263,28 +295,26 @@ open class FileDestination: BaseDestination, @unchecked Sendable {
 // MARK: - AddtionFileHandle
 
 extension FileDestination {
-    private func validateAddtionFileHandle() {
-        guard let addtionFileHandle = addtionFileHandle else { return }
+    private func validateAddtionFileHandle(_ fileHandle: FileHandle) {
         accessQueue.sync {
-            let addtionFileSize = addtionFileHandle.getSize()
+            let addtionFileSize = fileHandle.getSize()
             guard addtionFileSize > self.logFileMaxSize else { return }
             if #available(iOS 13.0, watchOS 6.0, tvOS 13.0, macOS 10.15, *) {
                 do {
-                    try addtionFileHandle.truncate(atOffset: 0)
+                    try fileHandle.truncate(atOffset: 0)
                 } catch {
                     print("SwiftyBeaver File Destination could not truncate addtionFileHandle: \(String(describing: error)).")
                 }
             } else {
-                addtionFileHandle.truncateFile(atOffset: 0)
+                fileHandle.truncateFile(atOffset: 0)
             }
         }
     }
 
-    private func writeAddtionFileHandle(data: Data) {
-        guard let addtionFileHandle = addtionFileHandle else { return }
+    private func writeData(_ data: Data, toAddtionFileHandle fileHandle: FileHandle) {
         accessQueue.sync {
             do {
-                try self.write(data: data, toFileHandle: addtionFileHandle, closeWhenFinish: false)
+                try self.write(data: data, toFileHandle: fileHandle, closeWhenFinish: false)
             } catch {
                 print("SwiftyBeaver File Destination could not write to addtionFileHandle: \(String(describing: error)).")
             }
