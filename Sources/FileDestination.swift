@@ -9,7 +9,7 @@
 
 import Foundation
 
-open class FileDestination: BaseDestination {
+open class FileDestination: BaseDestination, @unchecked Sendable {
     public var logFileURL: URL?
     public var syncAfterEachWrite: Bool = false
     public var colored: Bool = false {
@@ -94,7 +94,7 @@ open class FileDestination: BaseDestination {
 
     // append to file. uses full base class functionality
     override open func send(_ level: SwiftyBeaver.Level, msg: String, thread: String,
-                            file: String, function: String, line: Int, context: Any? = nil) -> String?
+                            file: String, function: String, line: Int, context: SendableAny? = nil) -> String?
     {
         let formattedString = super.send(level, msg: msg, thread: thread, file: file, function: function, line: line, context: context)
 

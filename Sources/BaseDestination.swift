@@ -32,7 +32,7 @@ import Foundation
 #endif
 
 /// destination which all others inherit from. do not directly use
-open class BaseDestination: Hashable, Equatable {
+open class BaseDestination: Hashable, Equatable, @unchecked Sendable {
     /// output format pattern, see documentation for syntax
     open var format = "$DHH:mm:ss.SSS$d $C$L$c $N.$F:$l - $M"
 
@@ -51,7 +51,7 @@ open class BaseDestination: Hashable, Equatable {
     /// set custom calendar for dateFormatter
     open var calendar = Calendar.current
 
-    public struct LevelString {
+    public struct LevelString: Sendable {
         public var verbose = "VERBOSE"
         public var debug = "DEBUG"
         public var info = "INFO"
@@ -63,7 +63,7 @@ open class BaseDestination: Hashable, Equatable {
 
     // For a colored log level word in a logged line
     // empty on default
-    public struct LevelColor {
+    public struct LevelColor: Sendable {
         public var verbose = "" // silver
         public var debug = "" // green
         public var info = "" // blue
@@ -113,7 +113,7 @@ open class BaseDestination: Hashable, Equatable {
     /// returns the formatted log message for processing by inheriting method
     /// and for unit tests (nil if error)
     open func send(_ level: SwiftyBeaver.Level, msg: String, thread: String, file: String,
-                   function: String, line: Int, context: Any? = nil) -> String?
+                   function: String, line: Int, context: SendableAny? = nil) -> String?
     {
         if format.hasPrefix("$J") {
             return messageToJSON(level, msg: msg, thread: thread,
@@ -125,7 +125,7 @@ open class BaseDestination: Hashable, Equatable {
         }
     }
 
-    public func execute(synchronously: Bool, block: @escaping () -> Void) {
+    public func execute(synchronously: Bool, block: @escaping @Sendable () -> Void) {
         guard let queue = queue else {
             fatalError("Queue not set")
         }
@@ -136,7 +136,7 @@ open class BaseDestination: Hashable, Equatable {
         }
     }
 
-    public func executeSynchronously<T>(block: @escaping () throws -> T) rethrows -> T {
+    public func executeSynchronously<T>(block: @escaping @Sendable () throws -> T) rethrows -> T {
         guard let queue = queue else {
             fatalError("Queue not set")
         }
@@ -188,7 +188,7 @@ open class BaseDestination: Hashable, Equatable {
 
     /// returns the log message based on the format pattern
     func formatMessage(_ format: String, level: SwiftyBeaver.Level, msg: String, thread: String,
-                       file: String, function: String, line: Int, context: Any? = nil) -> String
+                       file: String, function: String, line: Int, context: SendableAny? = nil) -> String
     {
         var text = ""
         // Prepend a $I for 'ignore' or else the first character is interpreted as a format character
@@ -263,7 +263,7 @@ open class BaseDestination: Hashable, Equatable {
 
     /// returns the log payload as optional JSON string
     func messageToJSON(_ level: SwiftyBeaver.Level, msg: String,
-                       thread: String, file: String, function: String, line: Int, context: Any? = nil) -> String?
+                       thread: String, file: String, function: String, line: Int, context: SendableAny? = nil) -> String?
     {
         var dict: [String: Any] = [
             "timestamp": Date().timeIntervalSince1970,

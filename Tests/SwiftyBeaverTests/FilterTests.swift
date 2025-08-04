@@ -4,11 +4,10 @@
 //
 
 import Foundation
-import XCTest
 @testable import SwiftyBeaver
+import XCTest
 
-class FilterTests: XCTestCase {
-
+class FilterTests: XCTestCase, @unchecked Sendable {
     //
     // Path filtering tests (identity)
     //
@@ -286,7 +285,7 @@ class FilterTests: XCTestCase {
 
     func test_pathCustomSimple_answersTrue() {
         let filter = Filters.Path.custom { string in
-            return string == "/Second/path/to/anywhere"
+            string == "/Second/path/to/anywhere"
         }
         XCTAssertTrue(filter.apply("/Second/path/to/anywhere"))
     }
@@ -576,7 +575,7 @@ class FilterTests: XCTestCase {
 
     func test_functionCustomSimple_answersTrue() {
         let filter = Filters.Function.custom { string in
-            return string == "myfunc"
+            string == "myfunc"
         }
         XCTAssertTrue(filter.apply("myfunc"))
     }
@@ -876,7 +875,7 @@ class FilterTests: XCTestCase {
 
     func test_messageCustomSimple_answersTrue() {
         let filter = Filters.Message.custom { string in
-            return string == "hello"
+            string == "hello"
         }
         XCTAssertTrue(filter.apply("hello"))
     }
@@ -934,11 +933,11 @@ class FilterTests: XCTestCase {
 
         case let .Equals(_, caseSensitive):
             isCaseSensitive = caseSensitive
+
         case .Custom:
             isCaseSensitive = false
         }
 
         return isCaseSensitive
     }
-
 }

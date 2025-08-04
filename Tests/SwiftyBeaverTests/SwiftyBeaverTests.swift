@@ -8,11 +8,10 @@
 //
 
 import Foundation
-import XCTest
 @testable import SwiftyBeaver
+import XCTest
 
 class SwiftyBeaverTests: XCTestCase {
-
     var instanceVar = "an instance variable"
 
     override func setUp() {
@@ -272,7 +271,7 @@ class SwiftyBeaverTests: XCTestCase {
         log.info(-123.45678)
         log.warning(NSDate())
         log.error(["I", "like", "logs!"])
-        log.error(["beaver": "yeah", "age": 12])
+        log.error(["beaver": "yeah", "age": 12] as [String: SendableAny])
 
         // JSON Logging
         let jsonConsole = ConsoleDestination()
@@ -284,7 +283,7 @@ class SwiftyBeaverTests: XCTestCase {
         log.info(-123.45678)
         log.warning(NSDate())
         log.error(["I", "like", "logs!"])
-        log.error(["beaver": "yeah", "age": 12])
+        log.error(["beaver": "yeah", "age": 12] as [String: SendableAny])
 
         XCTAssertEqual(log.countDestinations(), 2)
     }
@@ -299,7 +298,6 @@ class SwiftyBeaverTests: XCTestCase {
     }
 
     func testLongRunningTaskIsNotExecutedWhenLoggingUnderMinLevel() {
-
         let log = SwiftyBeaver.self
 
         // add console
@@ -340,7 +338,7 @@ class SwiftyBeaverTests: XCTestCase {
 
         log.addDestination(mock)
 
-        //main thread
+        // main thread
         log.verbose("Hi")
         XCTAssertEqual(mock.didSendToThread, "")
         log.debug("Hi")
@@ -368,11 +366,11 @@ class SwiftyBeaverTests: XCTestCase {
             expectation.fulfill()
         }
 
-        self.wait(for: [expectation], timeout: 2)
-        
+        wait(for: [expectation], timeout: 2)
+
         let expectation2 = XCTestExpectation(description: "thread check custom")
 
-        DispatchQueue.init(label: "MyTestLabel").async {
+        DispatchQueue(label: "MyTestLabel").async {
             log.verbose("Hi")
             XCTAssertEqual(mock.didSendToThread, "MyTestLabel")
             log.debug("Hi")
@@ -386,8 +384,7 @@ class SwiftyBeaverTests: XCTestCase {
             expectation2.fulfill()
         }
 
-        self.wait(for: [expectation2], timeout: 2)
-        
+        wait(for: [expectation2], timeout: 2)
     }
 
     static let allTests = [
@@ -400,23 +397,23 @@ class SwiftyBeaverTests: XCTestCase {
         ("testDifferentMessageTypes", testDifferentMessageTypes),
         ("testAutoClosure", testAutoClosure),
         ("testLongRunningTaskIsNotExecutedWhenLoggingUnderMinLevel",
-            testLongRunningTaskIsNotExecutedWhenLoggingUnderMinLevel),
+         testLongRunningTaskIsNotExecutedWhenLoggingUnderMinLevel),
         ("testVersionAndBuild", testVersionAndBuild),
         ("testStripParams", testStripParams),
-        //("testGetCorrectThread", testGetCorrectThread) // incorrect on Linux
+        // ("testGetCorrectThread", testGetCorrectThread) // incorrect on Linux
     ]
 }
 
-private class MockDestination: BaseDestination {
+private class MockDestination: BaseDestination, @unchecked Sendable {
     var didSendToLevel: SwiftyBeaver.Level?
     var didSendMessage: String?
     var didSendToThread: String?
     var didSendFile: String?
     var didSendFunction: String?
     var didSendLine: Int?
-    var didSendContext: (Any?)?
+    var didSendContext: Any??
 
-    override func send(_ level: SwiftyBeaver.Level, msg: String, thread: String, file: String, function: String, line: Int, context: Any?) -> String? {
+    override func send(_ level: SwiftyBeaver.Level, msg: String, thread: String, file: String, function: String, line: Int, context: SendableAny?) -> String? {
         didSendToLevel = level
         didSendMessage = msg
         didSendToThread = thread
@@ -444,4 +441,3 @@ private class MockDestination: BaseDestination {
         return true
     }
 }
-

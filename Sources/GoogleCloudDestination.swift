@@ -7,7 +7,7 @@
 
 import Foundation
 
-public final class GoogleCloudDestination: BaseDestination {
+public final class GoogleCloudDestination: BaseDestination, @unchecked Sendable {
     private let serviceName: String
 
     public init(serviceName: String, label: String = UUID().uuidString) {
@@ -25,12 +25,12 @@ public final class GoogleCloudDestination: BaseDestination {
     }
 
     override public func send(_ level: SwiftyBeaver.Level, msg: String, thread: String,
-                              file: String, function: String, line: Int, context: Any? = nil) -> String?
+                              file: String, function: String, line: Int, context: SendableAny? = nil) -> String?
     {
-        let reportLocation: [String: Any] = ["filePath": file, "lineNumber": line, "functionName": function]
-        var gcpContext: [String: Any] = ["reportLocation": reportLocation]
-        if let context = context as? [String: Any] {
-            if let httpRequestContext = context["httpRequest"] as? [String: Any] {
+        let reportLocation: [String: SendableAny] = ["filePath": file, "lineNumber": line, "functionName": function]
+        var gcpContext: [String: SendableAny] = ["reportLocation": reportLocation]
+        if let context = context as? [String: SendableAny] {
+            if let httpRequestContext = context["httpRequest"] as? [String: SendableAny] {
                 gcpContext["httpRequest"] = httpRequestContext
             }
 

@@ -17,9 +17,9 @@ import Foundation
 /// based on their condition (path, function, message) and their
 /// minimum log level.
 
-struct FilterValidator {
+struct FilterValidator: Sendable {
     // These are the different filter types that the user can set
-    enum ValidationType: CaseIterable {
+    enum ValidationType: CaseIterable, Sendable {
         case excluded
         case required
         case nonRequired
@@ -37,7 +37,7 @@ struct FilterValidator {
     }
 
     // Wrapper object for input parameters
-    struct Input {
+    struct Input: Sendable {
         let filters: [FilterType]
         let level: SwiftyBeaver.Level
         let path: String
@@ -46,12 +46,12 @@ struct FilterValidator {
     }
 
     // Result wrapper object
-    enum Result {
+    enum Result: Sendable {
         case allFiltersMatch // All filters fully match the log entry (condition + minimum log level)
         case someFiltersMatch(PartialMatchData) // Only some filters fully match the log entry (condition + minimum log level)
         case noFiltersMatchingType // There are no filters set for a particular type (excluded, required, nonRequired)
 
-        struct PartialMatchData {
+        struct PartialMatchData: Sendable {
             let fullMatchCount: Int // Number of filters that match both the condition and the minimum log level of the log entry
             let conditionMatchCount: Int // Number of filters that match ONLY the condition of the log entry (path, function, message)
             let logLevelMatchCount: Int // Number of filters that match ONLY the minimum log level of the log entry

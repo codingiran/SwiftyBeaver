@@ -17,7 +17,7 @@ import Foundation
 /// A filter must contain a target, which identifies what it filters against
 /// A filter can be required meaning that all required filters against a specific
 /// target must pass in order for the message to be logged.
-public protocol FilterType: AnyObject {
+public protocol FilterType: AnyObject, Sendable {
     func apply(_ value: String?) -> Bool
     func getTarget() -> Filter.TargetType
     func isRequired() -> Bool
@@ -26,27 +26,27 @@ public protocol FilterType: AnyObject {
 }
 
 /// Filters is syntactic sugar used to easily construct filters
-public class Filters {
+public class Filters: @unchecked Sendable {
     public static let Path = PathFilterFactory.self
     public static let Function = FunctionFilterFactory.self
     public static let Message = MessageFilterFactory.self
 }
 
 /// Filter is an abstract base class for other filters
-public class Filter {
-    public enum TargetType {
+public class Filter: @unchecked Sendable {
+    public enum TargetType: Sendable {
         case Path(Filter.ComparisonType)
         case Function(Filter.ComparisonType)
         case Message(Filter.ComparisonType)
     }
 
-    public enum ComparisonType {
+    public enum ComparisonType: Sendable {
         case StartsWith([String], Bool)
         case Contains([String], Bool)
         case Excludes([String], Bool)
         case EndsWith([String], Bool)
         case Equals([String], Bool)
-        case Custom((String) -> Bool)
+        case Custom(@Sendable (String) -> Bool)
     }
 
     let targetType: Filter.TargetType
@@ -81,7 +81,7 @@ public class Filter {
 /// CompareFilter is a FilterType that can filter based upon whether a target
 /// starts with, contains or ends with a specific string. CompareFilters can be
 /// case sensitive.
-public class CompareFilter: Filter, FilterType {
+public class CompareFilter: Filter, FilterType, @unchecked Sendable {
     private var filterComparisonType: Filter.ComparisonType?
 
     override public init(_ target: Filter.TargetType, required: Bool, minLevel: SwiftyBeaver.Level) {
@@ -164,7 +164,7 @@ public class CompareFilter: Filter, FilterType {
 }
 
 // Syntactic sugar for creating a function comparison filter
-public class FunctionFilterFactory {
+public class FunctionFilterFactory: @unchecked Sendable {
     public static func startsWith(_ prefixes: String..., caseSensitive: Bool = false,
                                   required: Bool = false, minLevel: SwiftyBeaver.Level = .verbose) -> FilterType
     {
@@ -195,13 +195,13 @@ public class FunctionFilterFactory {
         return CompareFilter(.Function(.Equals(strings, caseSensitive)), required: required, minLevel: minLevel)
     }
 
-    public static func custom(required: Bool = false, minLevel: SwiftyBeaver.Level = .verbose, filterPredicate: @escaping (String) -> Bool) -> FilterType {
+    public static func custom(required: Bool = false, minLevel: SwiftyBeaver.Level = .verbose, filterPredicate: @escaping @Sendable (String) -> Bool) -> FilterType {
         return CompareFilter(.Function(.Custom(filterPredicate)), required: required, minLevel: minLevel)
     }
 }
 
 // Syntactic sugar for creating a message comparison filter
-public class MessageFilterFactory {
+public class MessageFilterFactory: @unchecked Sendable {
     public static func startsWith(_ prefixes: String..., caseSensitive: Bool = false,
                                   required: Bool = false, minLevel: SwiftyBeaver.Level = .verbose) -> FilterType
     {
@@ -232,13 +232,13 @@ public class MessageFilterFactory {
         return CompareFilter(.Message(.Equals(strings, caseSensitive)), required: required, minLevel: minLevel)
     }
 
-    public static func custom(required: Bool = false, minLevel: SwiftyBeaver.Level = .verbose, filterPredicate: @escaping (String) -> Bool) -> FilterType {
+    public static func custom(required: Bool = false, minLevel: SwiftyBeaver.Level = .verbose, filterPredicate: @escaping @Sendable (String) -> Bool) -> FilterType {
         return CompareFilter(.Message(.Custom(filterPredicate)), required: required, minLevel: minLevel)
     }
 }
 
 // Syntactic sugar for creating a path comparison filter
-public class PathFilterFactory {
+public class PathFilterFactory: @unchecked Sendable {
     public static func startsWith(_ prefixes: String..., caseSensitive: Bool = false,
                                   required: Bool = false, minLevel: SwiftyBeaver.Level = .verbose) -> FilterType
     {
@@ -269,7 +269,7 @@ public class PathFilterFactory {
         return CompareFilter(.Path(.Equals(strings, caseSensitive)), required: required, minLevel: minLevel)
     }
 
-    public static func custom(required: Bool = false, minLevel: SwiftyBeaver.Level = .verbose, filterPredicate: @escaping (String) -> Bool) -> FilterType {
+    public static func custom(required: Bool = false, minLevel: SwiftyBeaver.Level = .verbose, filterPredicate: @escaping @Sendable (String) -> Bool) -> FilterType {
         return CompareFilter(.Path(.Custom(filterPredicate)), required: required, minLevel: minLevel)
     }
 }
