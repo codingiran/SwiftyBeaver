@@ -74,3 +74,30 @@ extension FileHandle {
         return Int(inodeInfo.st_size)
     }
 }
+
+extension URL {
+    init(fileURLPath path: String, isDirectory: Bool) {
+        if #available(macOS 13.0, iOS 16.0, tvOS 16.0, watchOS 9.0, *) {
+            self.init(filePath: path, directoryHint: isDirectory ? .isDirectory : .notDirectory)
+        } else {
+            self.init(fileURLWithPath: path)
+        }
+    }
+
+    func appendingPath(_ path: String, isDirectory: Bool) -> URL {
+        if #available(macOS 13.0, iOS 16.0, tvOS 16.0, watchOS 9.0, *) {
+            return self.appending(path: path, directoryHint: isDirectory ? .isDirectory : .notDirectory)
+        } else {
+            return self.appendingPathComponent(path, isDirectory: isDirectory)
+        }
+    }
+
+    static func cachesDirectory() -> URL {
+        if #available(macOS 13.0, iOS 16.0, tvOS 16.0, watchOS 9.0, *) {
+            return URL.cachesDirectory
+        } else {
+            let cachesDirectoryPath = NSSearchPathForDirectoriesInDomains(.cachesDirectory, .userDomainMask, true).first ?? "\(NSHomeDirectory())/Library/Caches"
+            return URL(fileURLPath: cachesDirectoryPath, isDirectory: true)
+        }
+    }
+}
