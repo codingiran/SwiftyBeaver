@@ -261,7 +261,7 @@ open class FileDestination: BaseDestination, @unchecked Sendable {
 // MARK: - File Write Mode
 
 public extension FileDestination {
-    enum FileWriteMode: Sendable {
+    enum FileWriteMode: Sendable, Equatable {
         case fileURL(URL)
         case fileHandle(FileHandle)
         case hybrid(URL, FileHandle)
