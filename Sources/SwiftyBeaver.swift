@@ -13,9 +13,9 @@ public typealias SendableAny = any Any & Sendable
 
 open class SwiftyBeaver: @unchecked Sendable {
     /// version string of framework
-    public static let version = "2.1.1" // UPDATE ON RELEASE!
+    public static let version = "3.0.0" // UPDATE ON RELEASE!
     /// build number of framework
-    public static let build = 2110 // version 1.6.2 -> 1620, UPDATE ON RELEASE!
+    public static let build = 3110 // version 3.0.0 -> 3110, UPDATE ON RELEASE!
 
     public enum Level: Int {
         case verbose = 0
