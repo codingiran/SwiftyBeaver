@@ -10,7 +10,6 @@
 import Foundation
 
 open class FileDestination: BaseDestination {
-
     public var logFileURL: URL?
     public var syncAfterEachWrite: Bool = false
     public var colored: Bool = false {
@@ -21,11 +20,11 @@ open class FileDestination: BaseDestination {
                 // uses the 256-color table from http://bit.ly/1W1qJuH
                 reset = "\u{001b}[0m"
                 escape = "\u{001b}[38;5;"
-                levelColor.verbose = "251m"     // silver
-                levelColor.debug = "35m"        // green
-                levelColor.info = "38m"         // blue
-                levelColor.warning = "178m"     // yellow
-                levelColor.error = "197m"       // red
+                levelColor.verbose = "251m" // silver
+                levelColor.debug = "35m" // green
+                levelColor.info = "38m" // blue
+                levelColor.warning = "178m" // yellow
+                levelColor.error = "197m" // red
             } else {
                 reset = ""
                 escape = ""
@@ -37,10 +36,10 @@ open class FileDestination: BaseDestination {
             }
         }
     }
-    
+
     public var addtionFileHandle: FileHandle?
     private lazy var accessQueue = DispatchQueue(label: "com.swiftyBeaver.addtionFileHandle.accessQueue")
-    
+
     // LOGFILE ROTATION
     // ho many bytes should a logfile have until it is rotated?
     // default is 5 MB. Just is used if logFileAmount > 1
@@ -48,9 +47,8 @@ open class FileDestination: BaseDestination {
     // Number of log files used in rotation, default is 1 which deactivates file rotation
     public var logFileAmount = 1
 
-    override public var defaultHashValue: Int {return 2}
+    override public var defaultHashValue: Int { return 2 }
     let fileManager = FileManager.default
-
 
     public init(logFileURL: URL? = nil, label: String = UUID().uuidString) {
         if let logFileURL = logFileURL {
@@ -96,7 +94,8 @@ open class FileDestination: BaseDestination {
 
     // append to file. uses full base class functionality
     override open func send(_ level: SwiftyBeaver.Level, msg: String, thread: String,
-        file: String, function: String, line: Int, context: Any? = nil) -> String? {
+                            file: String, function: String, line: Int, context: Any? = nil) -> String?
+    {
         let formattedString = super.send(level, msg: msg, thread: thread, file: file, function: function, line: line, context: context)
 
         if let str = formattedString {
@@ -104,10 +103,10 @@ open class FileDestination: BaseDestination {
         }
         return formattedString
     }
-    
+
     // check if filesize is bigger than wanted and if yes then rotate them
     func validateSaveFile(str: String) -> Bool {
-        if self.logFileAmount > 1 {
+        if logFileAmount > 1 {
             guard let url = logFileURL else { return false }
             let filePath = url.path
             if FileManager.default.fileExists(atPath: filePath) == true {
@@ -127,35 +126,35 @@ open class FileDestination: BaseDestination {
         validateAddtionFileHandle()
         return saveToFile(str: str)
     }
-    
-    private func rotateFile(_ fileUrl: URL) {
-       let filePath = fileUrl.path
-       let lastIndex = (logFileAmount-1)
-       let firstIndex = 1
-       do {
-           for index in stride(from: lastIndex, through: firstIndex, by: -1) {
-               let oldFile = makeRotatedFileUrl(fileUrl, index: index).path
 
-               if FileManager.default.fileExists(atPath: oldFile) {
-                   if index == lastIndex {
-                       // Delete the last file
-                       try FileManager.default.removeItem(atPath: oldFile)
-                   } else {
-                       // Move the current file to next index
-                       let newFile = makeRotatedFileUrl(fileUrl, index: index + 1).path
-                       try FileManager.default.moveItem(atPath: oldFile, toPath: newFile)
-                   }
-               }
-           }
-        
-           // Finally, move the current file
-           let newFile = makeRotatedFileUrl(fileUrl, index: firstIndex).path
-           try FileManager.default.moveItem(atPath: filePath, toPath: newFile)
-       } catch {
-           print("rotateFile error: \(error)")
-       }
+    private func rotateFile(_ fileUrl: URL) {
+        let filePath = fileUrl.path
+        let lastIndex = (logFileAmount - 1)
+        let firstIndex = 1
+        do {
+            for index in stride(from: lastIndex, through: firstIndex, by: -1) {
+                let oldFile = makeRotatedFileUrl(fileUrl, index: index).path
+
+                if FileManager.default.fileExists(atPath: oldFile) {
+                    if index == lastIndex {
+                        // Delete the last file
+                        try FileManager.default.removeItem(atPath: oldFile)
+                    } else {
+                        // Move the current file to next index
+                        let newFile = makeRotatedFileUrl(fileUrl, index: index + 1).path
+                        try FileManager.default.moveItem(atPath: oldFile, toPath: newFile)
+                    }
+                }
+            }
+
+            // Finally, move the current file
+            let newFile = makeRotatedFileUrl(fileUrl, index: firstIndex).path
+            try FileManager.default.moveItem(atPath: filePath, toPath: newFile)
+        } catch {
+            print("rotateFile error: \(error)")
+        }
     }
-    
+
     private func makeRotatedFileUrl(_ fileUrl: URL, index: Int) -> URL {
         // The index is appended to the file name, to preserve the original extension.
         fileUrl.deletingPathExtension()
@@ -174,79 +173,77 @@ open class FileDestination: BaseDestination {
     }
 
     private func write(data: Data, to url: URL) -> Bool {
-        
         #if os(Linux)
             return true
         #else
-        var success = false
-        let coordinator = NSFileCoordinator(filePresenter: nil)
-        var error: NSError?
-        coordinator.coordinate(writingItemAt: url, error: &error) { url in
-            do {
-                if fileManager.fileExists(atPath: url.path) == false {
+            var success = false
+            let coordinator = NSFileCoordinator(filePresenter: nil)
+            var error: NSError?
+            coordinator.coordinate(writingItemAt: url, error: &error) { url in
+                do {
+                    if fileManager.fileExists(atPath: url.path) == false {
+                        let directoryURL = url.deletingLastPathComponent()
+                        if fileManager.fileExists(atPath: directoryURL.path) == false {
+                            try fileManager.createDirectory(
+                                at: directoryURL,
+                                withIntermediateDirectories: true
+                            )
+                        }
+                        fileManager.createFile(atPath: url.path, contents: nil)
 
-                    let directoryURL = url.deletingLastPathComponent()
-                    if fileManager.fileExists(atPath: directoryURL.path) == false {
-                        try fileManager.createDirectory(
-                            at: directoryURL,
-                            withIntermediateDirectories: true
-                        )
+                        #if os(iOS) || os(watchOS)
+                            if #available(iOS 10.0, watchOS 3.0, *) {
+                                var attributes = try fileManager.attributesOfItem(atPath: url.path)
+                                attributes[FileAttributeKey.protectionKey] = FileProtectionType.none
+                                try fileManager.setAttributes(attributes, ofItemAtPath: url.path)
+                            }
+                        #endif
                     }
-                    fileManager.createFile(atPath: url.path, contents: nil)
 
-                    #if os(iOS) || os(watchOS)
-                    if #available(iOS 10.0, watchOS 3.0, *) {
-                        var attributes = try fileManager.attributesOfItem(atPath: url.path)
-                        attributes[FileAttributeKey.protectionKey] = FileProtectionType.none
-                        try fileManager.setAttributes(attributes, ofItemAtPath: url.path)
-                    }
-                    #endif
+                    let fileHandle = try FileHandle(forWritingTo: url)
+                    success = try write(data: data, toFileHandle: fileHandle)
+                    writeAddtionFileHandle(data: data)
+                } catch {
+                    success = false
+                    print("SwiftyBeaver File Destination could not write to file \(url).")
                 }
-
-                let fileHandle = try FileHandle(forWritingTo: url)
-                success = try write(data: data, toFileHandle: fileHandle)
-                writeAddtionFileHandle(data: data)
-            } catch {
-                success = false
-                print("SwiftyBeaver File Destination could not write to file \(url).")
             }
-        }
 
-        if let error = error {
-            print("Failed writing file with error: \(String(describing: error))")
-            return false
-        }
+            if let error = error {
+                print("Failed writing file with error: \(String(describing: error))")
+                return false
+            }
 
-        return success
+            return success
         #endif
     }
-    
+
     @discardableResult
     private func write(data: Data, toFileHandle fileHandle: FileHandle, closeWhenFinish: Bool = true) throws -> Bool {
-    #if os(Linux)
-        return true
-    #else
-        if #available(iOS 13.4, watchOS 6.2, tvOS 13.4, macOS 10.15.4, *) {
-            try fileHandle.seekToEnd()
-            try fileHandle.write(contentsOf: data)
-            if syncAfterEachWrite {
-                try fileHandle.synchronize()
+        #if os(Linux)
+            return true
+        #else
+            if #available(iOS 13.4, watchOS 6.2, tvOS 13.4, macOS 10.15.4, *) {
+                try fileHandle.seekToEnd()
+                try fileHandle.write(contentsOf: data)
+                if syncAfterEachWrite {
+                    try fileHandle.synchronize()
+                }
+                if closeWhenFinish {
+                    try fileHandle.close()
+                }
+            } else {
+                fileHandle.seekToEndOfFile()
+                fileHandle.write(data)
+                if syncAfterEachWrite {
+                    fileHandle.synchronizeFile()
+                }
+                if closeWhenFinish {
+                    fileHandle.closeFile()
+                }
             }
-            if closeWhenFinish {
-                try fileHandle.close()
-            }
-        } else {
-            fileHandle.seekToEndOfFile()
-            fileHandle.write(data)
-            if syncAfterEachWrite {
-                fileHandle.synchronizeFile()
-            }
-            if closeWhenFinish {
-                fileHandle.closeFile()
-            }
-        }
-        return true
-    #endif
+            return true
+        #endif
     }
 
     /// deletes log file.

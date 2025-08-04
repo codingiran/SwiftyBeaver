@@ -7,33 +7,32 @@
 //  Some rights reserved: http://opensource.org/licenses/MIT
 //
 
-import Foundation
 import Dispatch
+import Foundation
 
 // store operating system / platform
 #if os(iOS)
-let OS = "iOS"
+    let OS = "iOS"
 #elseif os(OSX)
-let OS = "OSX"
+    let OS = "OSX"
 #elseif os(watchOS)
-let OS = "watchOS"
+    let OS = "watchOS"
 #elseif os(tvOS)
-let OS = "tvOS"
+    let OS = "tvOS"
 #elseif os(Linux)
-let OS = "Linux"
+    let OS = "Linux"
 #elseif os(FreeBSD)
-let OS = "FreeBSD"
+    let OS = "FreeBSD"
 #elseif os(Windows)
-let OS = "Windows"
+    let OS = "Windows"
 #elseif os(Android)
-let OS = "Android"
+    let OS = "Android"
 #else
-let OS = "Unknown"
+    let OS = "Unknown"
 #endif
 
 /// destination which all others inherit from. do not directly use
 open class BaseDestination: Hashable, Equatable {
-
     /// output format pattern, see documentation for syntax
     open var format = "$DHH:mm:ss.SSS$d $C$L$c $N.$F:$l - $M"
 
@@ -65,13 +64,13 @@ open class BaseDestination: Hashable, Equatable {
     // For a colored log level word in a logged line
     // empty on default
     public struct LevelColor {
-        public var verbose = ""     // silver
-        public var debug = ""       // green
-        public var info = ""        // blue
-        public var warning = ""     // yellow
-        public var error = ""       // red
-        public var critical = ""    // red
-        public var fault = ""       // red
+        public var verbose = "" // silver
+        public var debug = "" // green
+        public var info = "" // blue
+        public var warning = "" // yellow
+        public var error = "" // red
+        public var critical = "" // red
+        public var fault = "" // red
     }
 
     var reset = ""
@@ -83,18 +82,18 @@ open class BaseDestination: Hashable, Equatable {
 
     // each destination class must have an own hashValue Int
     #if swift(>=4.2)
-    public func hash(into hasher: inout Hasher) {
-        hasher.combine(defaultHashValue)
-    }
+        public func hash(into hasher: inout Hasher) {
+            hasher.combine(defaultHashValue)
+        }
     #else
-    lazy public var hashValue: Int = self.defaultHashValue
+        public lazy var hashValue: Int = self.defaultHashValue
     #endif
 
-    open var defaultHashValue: Int {return 0}
+    open var defaultHashValue: Int { return 0 }
 
     // each destination instance must have an own serial queue to ensure serial output
     // GCD gives it a prioritization between User Initiated and Utility
-    var queue: DispatchQueue? //dispatch_queue_t?
+    var queue: DispatchQueue? // dispatch_queue_t?
     var debugPrint = false // set to true to debug the internal filter logic of the class
 
     /// label of Destination
@@ -105,7 +104,7 @@ open class BaseDestination: Hashable, Equatable {
         let queueLabel = "swiftybeaver-queue-" + label
         queue = DispatchQueue(label: queueLabel, target: queue)
     }
-    
+
     open func isMatch(_ destination: String) -> Bool {
         return label == destination
     }
@@ -114,8 +113,8 @@ open class BaseDestination: Hashable, Equatable {
     /// returns the formatted log message for processing by inheriting method
     /// and for unit tests (nil if error)
     open func send(_ level: SwiftyBeaver.Level, msg: String, thread: String, file: String,
-                   function: String, line: Int, context: Any? = nil) -> String? {
-
+                   function: String, line: Int, context: Any? = nil) -> String?
+    {
         if format.hasPrefix("$J") {
             return messageToJSON(level, msg: msg, thread: thread,
                                  file: file, function: function, line: line, context: context)
@@ -145,14 +144,16 @@ open class BaseDestination: Hashable, Equatable {
     }
 
     ////////////////////////////////
+
     // MARK: Format
+
     ////////////////////////////////
 
     /// returns (padding length value, offset in string after padding info)
     private func parsePadding(_ text: String) -> (Int, Int) {
         // look for digits followed by a alpha character
         var s: String!
-        var sign: Int = 1
+        var sign = 1
         if text.firstChar == "-" {
             sign = -1
             s = String(text.suffix(from: text.index(text.startIndex, offsetBy: 1)))
@@ -187,8 +188,8 @@ open class BaseDestination: Hashable, Equatable {
 
     /// returns the log message based on the format pattern
     func formatMessage(_ format: String, level: SwiftyBeaver.Level, msg: String, thread: String,
-        file: String, function: String, line: Int, context: Any? = nil) -> String {
-
+                       file: String, function: String, line: Int, context: Any? = nil) -> String
+    {
         var text = ""
         // Prepend a $I for 'ignore' or else the first character is interpreted as a format character
         // even if the format string did not start with a $.
@@ -198,11 +199,11 @@ open class BaseDestination: Hashable, Equatable {
             let (padding, offset) = parsePadding(phrase)
             let formatCharIndex = phrase.index(phrase.startIndex, offsetBy: offset)
             let formatChar = phrase[formatCharIndex]
-            let rangeAfterFormatChar = phrase.index(formatCharIndex, offsetBy: 1)..<phrase.endIndex
+            let rangeAfterFormatChar = phrase.index(formatCharIndex, offsetBy: 1) ..< phrase.endIndex
             let remainingPhrase = phrase[rangeAfterFormatChar]
 
             switch formatChar {
-            case "I":  // ignore
+            case "I": // ignore
                 text += remainingPhrase
             case "L":
                 text += paddedString(levelWord(level), padding) + remainingPhrase
@@ -223,9 +224,9 @@ open class BaseDestination: Hashable, Equatable {
             case "D":
                 // start of datetime format
                 #if swift(>=3.2)
-                text += paddedString(formatDate(String(remainingPhrase)), padding)
+                    text += paddedString(formatDate(String(remainingPhrase)), padding)
                 #else
-                text += paddedString(formatDate(remainingPhrase), padding)
+                    text += paddedString(formatDate(remainingPhrase), padding)
                 #endif
             case "d":
                 text += remainingPhrase
@@ -234,9 +235,9 @@ open class BaseDestination: Hashable, Equatable {
             case "Z":
                 // start of datetime format in UTC timezone
                 #if swift(>=3.2)
-                text += paddedString(formatDate(String(remainingPhrase), timeZone: "UTC"), padding)
+                    text += paddedString(formatDate(String(remainingPhrase), timeZone: "UTC"), padding)
                 #else
-                text += paddedString(formatDate(remainingPhrase, timeZone: "UTC"), padding)
+                    text += paddedString(formatDate(remainingPhrase, timeZone: "UTC"), padding)
                 #endif
             case "z":
                 text += remainingPhrase
@@ -262,7 +263,8 @@ open class BaseDestination: Hashable, Equatable {
 
     /// returns the log payload as optional JSON string
     func messageToJSON(_ level: SwiftyBeaver.Level, msg: String,
-        thread: String, file: String, function: String, line: Int, context: Any? = nil) -> String? {
+                       thread: String, file: String, function: String, line: Int, context: Any? = nil) -> String?
+    {
         var dict: [String: Any] = [
             "timestamp": Date().timeIntervalSince1970,
             "level": level.rawValue,
@@ -270,8 +272,8 @@ open class BaseDestination: Hashable, Equatable {
             "thread": thread,
             "file": file,
             "function": function,
-            "line": line
-            ]
+            "line": line,
+        ]
         if let cx = context {
             dict["context"] = cx
         }
@@ -280,13 +282,12 @@ open class BaseDestination: Hashable, Equatable {
 
     /// returns the string of a level
     func levelWord(_ level: SwiftyBeaver.Level) -> String {
-
         var str = ""
 
         switch level {
         case .verbose:
             str = levelString.verbose
-            
+
         case .debug:
             str = levelString.debug
 
@@ -315,7 +316,7 @@ open class BaseDestination: Hashable, Equatable {
         switch level {
         case .verbose:
             color = levelColor.verbose
-            
+
         case .debug:
             color = levelColor.debug
 
@@ -330,7 +331,7 @@ open class BaseDestination: Hashable, Equatable {
 
         case .critical:
             color = levelColor.critical
-            
+
         case .fault:
             color = levelColor.fault
         }
@@ -367,7 +368,7 @@ open class BaseDestination: Hashable, Equatable {
         }
         formatter.calendar = calendar
         formatter.dateFormat = dateFormat
-        //let dateStr = formatter.string(from: NSDate() as Date)
+        // let dateStr = formatter.string(from: NSDate() as Date)
         let dateStr = formatter.string(from: Date())
         return dateStr
     }
@@ -395,11 +396,11 @@ open class BaseDestination: Hashable, Equatable {
         let offset = key.length + 5
         let endIndex = str.index(str.startIndex,
                                  offsetBy: str.length - 2)
-        let range = str.index(str.startIndex, offsetBy: offset)..<endIndex
+        let range = str.index(str.startIndex, offsetBy: offset) ..< endIndex
         #if swift(>=3.2)
-        return String(str[range])
+            return String(str[range])
         #else
-        return str[range]
+            return str[range]
         #endif
     }
 
@@ -418,7 +419,9 @@ open class BaseDestination: Hashable, Equatable {
     }
 
     ////////////////////////////////
+
     // MARK: Filters
+
     ////////////////////////////////
 
     /// Add a filter that determines whether or not a particular message will be logged to this destination
@@ -429,13 +432,13 @@ open class BaseDestination: Hashable, Equatable {
     /// Remove a filter from the list of filters
     public func removeFilter(_ filter: FilterType) {
         #if swift(>=5)
-        let index = filters.firstIndex {
-            return ObjectIdentifier($0) == ObjectIdentifier(filter)
-        }
+            let index = filters.firstIndex {
+                ObjectIdentifier($0) == ObjectIdentifier(filter)
+            }
         #else
-        let index = filters.index {
-            return ObjectIdentifier($0) == ObjectIdentifier(filter)
-        }
+            let index = filters.index {
+                ObjectIdentifier($0) == ObjectIdentifier(filter)
+            }
         #endif
 
         guard let filterIndex = index else {
@@ -446,18 +449,18 @@ open class BaseDestination: Hashable, Equatable {
     }
 
     /// Answer whether the destination has any message filters
-    /// returns boolean and is used to decide whether to resolve 
+    /// returns boolean and is used to decide whether to resolve
     /// the message before invoking shouldLevelBeLogged
     func hasMessageFilters() -> Bool {
         return !getFiltersTargeting(Filter.TargetType.Message(.Equals([], true)),
-                                    fromFilters: self.filters).isEmpty
+                                    fromFilters: filters).isEmpty
     }
 
     /// checks if level is at least minLevel or if a minLevel filter for that path does exist
     /// returns boolean and can be used to decide if a message should be logged or not
     func shouldLevelBeLogged(_ level: SwiftyBeaver.Level, path: String,
-                             function: String, message: String? = nil) -> Bool {
-
+                             function: String, message: String? = nil) -> Bool
+    {
         if filters.isEmpty {
             if level.rawValue >= minLevel.rawValue {
                 if debugPrint {
@@ -472,7 +475,7 @@ open class BaseDestination: Hashable, Equatable {
             }
         }
 
-        let filterCheckResult = FilterValidator.validate(input: .init(filters: self.filters, level: level, path: path, function: function, message: message))
+        let filterCheckResult = FilterValidator.validate(input: .init(filters: filters, level: level, path: path, function: function, message: message))
 
         // Exclusion filters match if they do NOT meet the filter condition (see Filter.apply(_:) method)
         switch filterCheckResult[.excluded] {
@@ -494,14 +497,14 @@ open class BaseDestination: Hashable, Equatable {
 
         let checkLogLevel: () -> Bool = {
             // Check if the log message's level matches or exceeds the minLevel of the destination
-            return level.rawValue >= self.minLevel.rawValue
+            level.rawValue >= self.minLevel.rawValue
         }
 
         // Non-required filters should only be applied if the log entry matches the filter condition (e.g. path)
         switch filterCheckResult[.nonRequired] {
         case .some(.allFiltersMatch): return true
         case .some(.noFiltersMatchingType), .none: return checkLogLevel()
-        case .some(.someFiltersMatch(let partialMatchData)):
+        case let .some(.someFiltersMatch(partialMatchData)):
             if partialMatchData.fullMatchCount > 0 {
                 // The log entry matches at least one filter condition and the destination's log level
                 return true
@@ -517,18 +520,18 @@ open class BaseDestination: Hashable, Equatable {
 
     func getFiltersTargeting(_ target: Filter.TargetType, fromFilters: [FilterType]) -> [FilterType] {
         return fromFilters.filter { filter in
-            return filter.getTarget() == target
+            filter.getTarget() == target
         }
     }
 
-  /**
-    Triggered by main flush() method on each destination. Runs in background thread.
-   Use for destinations that buffer log items, implement this function to flush those
-   buffers to their final destination (web server...)
-   */
-  func flush() {
-    // no implementation in base destination needed
-  }
+    /**
+      Triggered by main flush() method on each destination. Runs in background thread.
+     Use for destinations that buffer log items, implement this function to flush those
+     buffers to their final destination (web server...)
+     */
+    func flush() {
+        // no implementation in base destination needed
+    }
 }
 
 public func == (lhs: BaseDestination, rhs: BaseDestination) -> Bool {

@@ -18,7 +18,6 @@ import Foundation
 /// minimum log level.
 
 struct FilterValidator {
-
     // These are the different filter types that the user can set
     enum ValidationType: CaseIterable {
         case excluded
@@ -48,14 +47,14 @@ struct FilterValidator {
 
     // Result wrapper object
     enum Result {
-        case allFiltersMatch                            // All filters fully match the log entry (condition + minimum log level)
-        case someFiltersMatch(PartialMatchData)         // Only some filters fully match the log entry (condition + minimum log level)
-        case noFiltersMatchingType                      // There are no filters set for a particular type (excluded, required, nonRequired)
+        case allFiltersMatch // All filters fully match the log entry (condition + minimum log level)
+        case someFiltersMatch(PartialMatchData) // Only some filters fully match the log entry (condition + minimum log level)
+        case noFiltersMatchingType // There are no filters set for a particular type (excluded, required, nonRequired)
 
         struct PartialMatchData {
-            let fullMatchCount: Int                     // Number of filters that match both the condition and the minimum log level of the log entry
-            let conditionMatchCount: Int                // Number of filters that match ONLY the condition of the log entry (path, function, message)
-            let logLevelMatchCount: Int                 // Number of filters that match ONLY the minimum log level of the log entry
+            let fullMatchCount: Int // Number of filters that match both the condition and the minimum log level of the log entry
+            let conditionMatchCount: Int // Number of filters that match ONLY the condition of the log entry (path, function, message)
+            let logLevelMatchCount: Int // Number of filters that match ONLY the minimum log level of the log entry
         }
     }
 
@@ -68,9 +67,9 @@ struct FilterValidator {
                 // There are no filters set for this particular type
                 results[type] = .noFiltersMatchingType
             } else {
-                var fullMatchCount: Int = 0
-                var conditionMatchCount: Int = 0
-                var logLevelMatchCount: Int = 0
+                var fullMatchCount = 0
+                var conditionMatchCount = 0
+                var logLevelMatchCount = 0
 
                 for filter in filtersToValidate {
                     let filterMatchesCondition = self.filterMatchesCondition(filter, level: input.level, path: input.path, function: input.function, message: input.message)
@@ -102,25 +101,26 @@ struct FilterValidator {
     }
 
     private static func filterMatchesCondition(_ filter: FilterType, level: SwiftyBeaver.Level,
-                                                path: String, function: String, message: String?) -> Bool {
-            let passes: Bool
+                                               path: String, function: String, message: String?) -> Bool
+    {
+        let passes: Bool
 
-            switch filter.getTarget() {
-            case .Path(_):
-                passes = filter.apply(path)
+        switch filter.getTarget() {
+        case .Path:
+            passes = filter.apply(path)
 
-            case .Function(_):
-                passes = filter.apply(function)
+        case .Function:
+            passes = filter.apply(function)
 
-            case .Message(_):
-                guard let message = message else {
-                    return false
-                }
-
-                passes = filter.apply(message)
+        case .Message:
+            guard let message = message else {
+                return false
             }
 
-            return passes
+            passes = filter.apply(message)
+        }
+
+        return passes
     }
 
     private static func filterMatchesMinLogLevel(_ filter: FilterType, level: SwiftyBeaver.Level) -> Bool {
