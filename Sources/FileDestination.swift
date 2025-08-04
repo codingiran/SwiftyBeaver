@@ -8,10 +8,20 @@
 //
 
 import Foundation
+import os.lock
 
 open class FileDestination: BaseDestination, @unchecked Sendable {
-    public var logFileURL: URL?
+    /// The mode in which the file is written to.
+    ///
+    /// - fileURL: Write to a file URL.
+    /// - fileHandle: Write to a file handle.
+    /// - hybrid: Write to both a file URL and a file handle.
+    public let fileWriteMode: FileWriteMode
+
+    /// Whether to sync the file after each write.
     public var syncAfterEachWrite: Bool = false
+
+    /// Whether to use colored output.
     public var colored: Bool = false {
         didSet {
             if colored {
@@ -37,8 +47,8 @@ open class FileDestination: BaseDestination, @unchecked Sendable {
         }
     }
 
-    public var addtionFileHandle: FileHandle?
-    private lazy var accessQueue = DispatchQueue(label: "com.swiftyBeaver.addtionFileHandle.accessQueue")
+    /// Lock for thread-safe file handle access.
+    private var fileHandleLock = os_unfair_lock()
 
     /// Controls whether to use NSFileCoordinator for file access coordination.
     /// Set to true for document-based apps, app extensions, or iCloud scenarios (default).
@@ -53,48 +63,43 @@ open class FileDestination: BaseDestination, @unchecked Sendable {
     public var logFileAmount = 1
 
     override public var defaultHashValue: Int { return 2 }
-    let fileManager = FileManager.default
 
-    public init(logFileURL: URL? = nil, label: String = UUID().uuidString) {
-        if let logFileURL = logFileURL {
-            self.logFileURL = logFileURL
-            super.init(label: label)
-            return
-        }
+    /// Internal shared file manager.
+    private let fileManager = FileManager.default
 
-        // platform-dependent logfile directory default
-        var baseURL: URL?
-        #if os(OSX)
-            if let url = fileManager.urls(for: .cachesDirectory, in: .userDomainMask).first {
-                baseURL = url
-                // try to use ~/Library/Caches/APP NAME instead of ~/Library/Caches
-                if let appName = Bundle.main.object(forInfoDictionaryKey: "CFBundleExecutable") as? String {
-                    do {
-                        if let appURL = baseURL?.appendingPathComponent(appName, isDirectory: true) {
-                            try fileManager.createDirectory(at: appURL,
-                                                            withIntermediateDirectories: true, attributes: nil)
-                            baseURL = appURL
-                        }
-                    } catch {
-                        print("Warning! Could not create folder /Library/Caches/\(appName)")
-                    }
-                }
-            }
-        #else
-            #if os(Linux)
-                baseURL = URL(fileURLWithPath: "/var/cache")
-            #else
-                // iOS, watchOS, etc. are using the caches directory
-                if let url = fileManager.urls(for: .cachesDirectory, in: .userDomainMask).first {
-                    baseURL = url
-                }
-            #endif
-        #endif
+    /// Initializes a new FileDestination with the given file write mode and label.
+    /// - Parameters:
+    ///   - fileWriteMode: The mode in which the file is written to.
+    ///   - label: The label for the destination.
+    public init(fileWriteMode: FileWriteMode, label: String = UUID().uuidString) {
+        self.fileWriteMode = fileWriteMode
+        super.init(label: label)
+    }
 
-        if let baseURL = baseURL {
-            self.logFileURL = baseURL.appendingPathComponent("swiftybeaver.log", isDirectory: false)
-        }
-        super.init()
+    /// Initializes a new FileDestination with the given log file URL and label.
+    /// - Parameters:
+    ///   - logFileURL: The URL of the log file.
+    ///   - label: The label for the destination.
+    public convenience init(logFileURL: URL? = nil, label: String = UUID().uuidString) {
+        let fileURL = logFileURL ?? FileDestination.logFileURLForLegacy()
+        self.init(fileWriteMode: .fileURL(fileURL), label: label)
+    }
+
+    /// Initializes a new FileDestination with the given log file handle and label.
+    /// - Parameters:
+    ///   - logFileHandle: The file handle to write to.
+    ///   - label: The label for the destination.
+    public convenience init(logFileHandle: FileHandle, label: String = UUID().uuidString) {
+        self.init(fileWriteMode: .fileHandle(logFileHandle), label: label)
+    }
+
+    /// Initializes a new FileDestination with the given log file URL and log file handle and label.
+    /// - Parameters:
+    ///   - logFileURL: The URL of the log file.
+    ///   - logFileHandle: The file handle to write to.
+    ///   - label: The label for the destination.
+    public convenience init(logFileURL: URL?, logFileHandle: FileHandle, label: String = UUID().uuidString) {
+        self.init(fileWriteMode: .hybrid(logFileURL ?? FileDestination.logFileURLForLegacy(), logFileHandle), label: label)
     }
 
     // append to file. uses full base class functionality
@@ -104,23 +109,24 @@ open class FileDestination: BaseDestination, @unchecked Sendable {
         let formattedString = super.send(level, msg: msg, thread: thread, file: file, function: function, line: line, context: context)
 
         if let str = formattedString {
-            _ = validateSaveFile(str: str)
+            validateSaveFile(str: str)
         }
         return formattedString
     }
 
     // check if filesize is bigger than wanted and if yes then rotate them
-    func validateSaveFile(str: String) -> Bool {
-        if logFileAmount > 1 {
-            guard let url = logFileURL else { return false }
+    func validateSaveFile(str: String) {
+        // check if file rotation is enabled and if the log file exists
+        if logFileAmount > 1, let url = logFileURL {
             let filePath = url.path
-            if FileManager.default.fileExists(atPath: filePath) == true {
+            if fileManager.fileExists(atPath: filePath) {
                 do {
                     // Get file size
-                    let attr = try FileManager.default.attributesOfItem(atPath: filePath)
-                    let fileSize = attr[FileAttributeKey.size] as! UInt64
+                    let attr = try fileManager.attributesOfItem(atPath: filePath)
                     // Do file rotation
-                    if fileSize > logFileMaxSize {
+                    if let fileSize = attr[FileAttributeKey.size] as? UInt64,
+                       fileSize > logFileMaxSize
+                    {
                         rotateFile(url)
                     }
                 } catch {
@@ -128,126 +134,86 @@ open class FileDestination: BaseDestination, @unchecked Sendable {
                 }
             }
         }
-        if let addtionFileHandle {
-            validateAddtionFileHandle(addtionFileHandle)
+
+        // check if the log file handle exists and if it does, validate it
+        if let logFileHandle {
+            validateLogFileHandle(logFileHandle)
         }
-        return saveToFile(str: str)
+
+        // save the string to the file
+        saveToFile(str: str)
     }
 
-    private func rotateFile(_ fileUrl: URL) {
-        let filePath = fileUrl.path
-        let lastIndex = (logFileAmount - 1)
-        let firstIndex = 1
-        do {
-            for index in stride(from: lastIndex, through: firstIndex, by: -1) {
-                let oldFile = makeRotatedFileUrl(fileUrl, index: index).path
-
-                if FileManager.default.fileExists(atPath: oldFile) {
-                    if index == lastIndex {
-                        // Delete the last file
-                        try FileManager.default.removeItem(atPath: oldFile)
-                    } else {
-                        // Move the current file to next index
-                        let newFile = makeRotatedFileUrl(fileUrl, index: index + 1).path
-                        try FileManager.default.moveItem(atPath: oldFile, toPath: newFile)
-                    }
-                }
-            }
-
-            // Finally, move the current file
-            let newFile = makeRotatedFileUrl(fileUrl, index: firstIndex).path
-            try FileManager.default.moveItem(atPath: filePath, toPath: newFile)
-        } catch {
-            print("rotateFile error: \(error)")
-        }
-    }
-
-    private func makeRotatedFileUrl(_ fileUrl: URL, index: Int) -> URL {
-        // The index is appended to the file name, to preserve the original extension.
-        fileUrl.deletingPathExtension()
-            .appendingPathExtension("\(index).\(fileUrl.pathExtension)")
-    }
-
-    /// appends a string as line to a file.
-    /// returns boolean about success
-    func saveToFile(str: String) -> Bool {
-        guard let url = logFileURL else { return false }
-
+    /// Appends a string as line to a file.
+    func saveToFile(str: String) {
         let line = str + "\n"
-        guard let data = line.data(using: String.Encoding.utf8) else { return false }
-
-        return write(data: data, to: url)
+        guard let data = line.data(using: .utf8) else { return }
+        write(data: data)
     }
 
-    private func write(data: Data, to url: URL) -> Bool {
+    /// Writes data to the log file.
+    private func write(data: Data) {
         #if os(Linux)
-            return true
-        #else
-            if useFileCoordination {
-                return writeWithCoordination(data: data, to: url)
-            } else {
-                return writeDirectly(data: data, to: url)
-            }
+            return
         #endif
-    }
 
-    /// Writes data to file using NSFileCoordinator for cross-process safety
-    private func writeWithCoordination(data: Data, to url: URL) -> Bool {
-        var success = false
-        let coordinator = NSFileCoordinator(filePresenter: nil)
-        var error: NSError?
-        coordinator.coordinate(writingItemAt: url, error: &error) { url in
-            success = performFileWrite(data: data, to: url)
+        // Write to logFileURL
+        if let logFileURL {
+            performFileWrite(data: data, toFileURL: logFileURL, useCoordination: useFileCoordination)
         }
 
-        if let error = error {
-            print("Failed writing file with error: \(String(describing: error))")
-            return false
+        // Write to logFileHandle
+        if let logFileHandle {
+            performFileWrite(data: data, toFileHandle: logFileHandle)
         }
-
-        return success
     }
 
-    /// Writes data to file directly without coordination for better performance
-    private func writeDirectly(data: Data, to url: URL) -> Bool {
-        return performFileWrite(data: data, to: url)
-    }
+    /// Performs the actual file write operation to the logFileURL
+    private func performFileWrite(data: Data, toFileURL url: URL, useCoordination: Bool) {
+        let fileWriteOperation: () -> Void = { [weak self] in
+            guard let self else { return }
 
-    /// Performs the actual file write operation
-    private func performFileWrite(data: Data, to url: URL) -> Bool {
-        do {
-            if fileManager.fileExists(atPath: url.path) == false {
-                let directoryURL = url.deletingLastPathComponent()
-                if fileManager.fileExists(atPath: directoryURL.path) == false {
-                    try fileManager.createDirectory(
-                        at: directoryURL,
-                        withIntermediateDirectories: true
-                    )
-                }
-                _ = fileManager.createFile(atPath: url.path, contents: nil)
-
-                #if os(iOS) || os(watchOS)
-                    if #available(iOS 10.0, watchOS 3.0, *) {
-                        var attributes = try fileManager.attributesOfItem(atPath: url.path)
-                        attributes[FileAttributeKey.protectionKey] = FileProtectionType.none
-                        try fileManager.setAttributes(attributes, ofItemAtPath: url.path)
+            do {
+                if fileManager.fileExists(atPath: url.path) == false {
+                    let directoryURL = url.deletingLastPathComponent()
+                    if fileManager.fileExists(atPath: directoryURL.path) == false {
+                        try fileManager.createDirectory(at: directoryURL, withIntermediateDirectories: true)
                     }
-                #endif
+                    _ = fileManager.createFile(atPath: url.path, contents: nil)
+
+                    #if os(iOS) || os(watchOS)
+                        if #available(iOS 10.0, watchOS 3.0, *) {
+                            var attributes = try fileManager.attributesOfItem(atPath: url.path)
+                            attributes[FileAttributeKey.protectionKey] = FileProtectionType.none
+                            try fileManager.setAttributes(attributes, ofItemAtPath: url.path)
+                        }
+                    #endif
+                }
+
+                let fileHandle = try FileHandle(forWritingTo: url)
+                try write(data: data, toFileHandle: fileHandle)
+            } catch {
+                print("SwiftyBeaver File Destination could not write to file \(url).")
             }
-
-            let fileHandle = try FileHandle(forWritingTo: url)
-            let success = try write(data: data, toFileHandle: fileHandle)
-
-            // Write to addtionFileHandle
-            if let addtionFileHandle {
-                writeData(data, toAddtionFileHandle: addtionFileHandle)
-            }
-
-            return success
-        } catch {
-            print("SwiftyBeaver File Destination could not write to file \(url).")
-            return false
         }
+
+        if useCoordination {
+            let coordinator = NSFileCoordinator(filePresenter: nil)
+            var error: NSError?
+            coordinator.coordinate(writingItemAt: url, error: &error) { _ in
+                fileWriteOperation()
+            }
+            if let error = error {
+                print("Failed writing file with error: \(String(describing: error))")
+            }
+        } else {
+            fileWriteOperation()
+        }
+    }
+
+    /// Performs the actual file write operation to the logFileHandle
+    private func performFileWrite(data: Data, toFileHandle fileHandle: FileHandle) {
+        writeData(data, toLogFileHandle: fileHandle)
     }
 
     @discardableResult
@@ -292,18 +258,88 @@ open class FileDestination: BaseDestination, @unchecked Sendable {
     }
 }
 
-// MARK: - AddtionFileHandle
+// MARK: - File Write Mode
+
+public extension FileDestination {
+    enum FileWriteMode: Sendable {
+        case fileURL(URL)
+        case fileHandle(FileHandle)
+        case hybrid(URL, FileHandle)
+    }
+
+    private var logFileURL: URL? {
+        switch fileWriteMode {
+        case let .fileURL(url):
+            return url
+        case .fileHandle:
+            return nil
+        case let .hybrid(url, _):
+            return url
+        }
+    }
+
+    private var logFileHandle: FileHandle? {
+        switch fileWriteMode {
+        case .fileURL:
+            return nil
+        case let .fileHandle(fileHandle):
+            return fileHandle
+        case let .hybrid(_, fileHandle):
+            return fileHandle
+        }
+    }
+}
+
+// MARK: - File Rotation
+
+private extension FileDestination {
+    func rotateFile(_ fileUrl: URL) {
+        let filePath = fileUrl.path
+        let lastIndex = (logFileAmount - 1)
+        let firstIndex = 1
+        do {
+            for index in stride(from: lastIndex, through: firstIndex, by: -1) {
+                let oldFile = makeRotatedFileUrl(fileUrl, index: index).path
+
+                if fileManager.fileExists(atPath: oldFile) {
+                    if index == lastIndex {
+                        // Delete the last file
+                        try fileManager.removeItem(atPath: oldFile)
+                    } else {
+                        // Move the current file to next index
+                        let newFile = makeRotatedFileUrl(fileUrl, index: index + 1).path
+                        try fileManager.moveItem(atPath: oldFile, toPath: newFile)
+                    }
+                }
+            }
+
+            // Finally, move the current file
+            let newFile = makeRotatedFileUrl(fileUrl, index: firstIndex).path
+            try fileManager.moveItem(atPath: filePath, toPath: newFile)
+        } catch {
+            print("rotateFile error: \(error)")
+        }
+    }
+
+    func makeRotatedFileUrl(_ fileUrl: URL, index: Int) -> URL {
+        // The index is appended to the file name, to preserve the original extension.
+        fileUrl.deletingPathExtension()
+            .appendingPathExtension("\(index).\(fileUrl.pathExtension)")
+    }
+}
+
+// MARK: - LogFileHandle
 
 extension FileDestination {
-    private func validateAddtionFileHandle(_ fileHandle: FileHandle) {
-        accessQueue.sync {
-            let addtionFileSize = fileHandle.getSize()
-            guard addtionFileSize > self.logFileMaxSize else { return }
+    private func validateLogFileHandle(_ fileHandle: FileHandle) {
+        withFileHandleLock {
+            let logFileSize = fileHandle.getSize()
+            guard logFileSize > self.logFileMaxSize else { return }
             if #available(iOS 13.0, watchOS 6.0, tvOS 13.0, macOS 10.15, *) {
                 do {
                     try fileHandle.truncate(atOffset: 0)
                 } catch {
-                    print("SwiftyBeaver File Destination could not truncate addtionFileHandle: \(String(describing: error)).")
+                    print("SwiftyBeaver File Destination could not truncate logFileHandle: \(String(describing: error)).")
                 }
             } else {
                 fileHandle.truncateFile(atOffset: 0)
@@ -311,13 +347,51 @@ extension FileDestination {
         }
     }
 
-    private func writeData(_ data: Data, toAddtionFileHandle fileHandle: FileHandle) {
-        accessQueue.sync {
+    private func writeData(_ data: Data, toLogFileHandle fileHandle: FileHandle) {
+        withFileHandleLock {
             do {
                 try self.write(data: data, toFileHandle: fileHandle, closeWhenFinish: false)
             } catch {
-                print("SwiftyBeaver File Destination could not write to addtionFileHandle: \(String(describing: error)).")
+                print("SwiftyBeaver File Destination could not write to logFileHandle: \(String(describing: error)).")
             }
         }
+    }
+
+    /// Executes the given block while holding the file handle lock.
+    private func withFileHandleLock<T>(_ block: () throws -> T) rethrows -> T {
+        os_unfair_lock_lock(&fileHandleLock)
+        defer { os_unfair_lock_unlock(&fileHandleLock) }
+        return try block()
+    }
+}
+
+// MARK: - LogFileURL for legacy support
+
+extension FileDestination {
+    static func logFileURLForLegacy() -> URL {
+        var fileURL: URL
+        #if os(Linux)
+            fileURL = URL(fileURLWithPath: "/var/cache")
+        #else
+            let cachesDirectory = URL.cachesDirectory()
+            fileURL = cachesDirectory
+            #if os(macOS)
+                // try to use ~/Library/Caches/APP NAME instead of ~/Library/Caches
+                if let appName = Bundle.main.object(forInfoDictionaryKey: "CFBundleExecutable") as? String {
+                    do {
+                        fileURL = fileURL.appendingPath(appName, isDirectory: true)
+                        if !FileManager.default.fileExists(atPath: fileURL.path) {
+                            try FileManager.default.createDirectory(at: fileURL, withIntermediateDirectories: true, attributes: nil)
+                        }
+                    } catch {
+                        print("Warning! Could not create folder ~/Library/Caches/\(appName)")
+                        // fallback to ~/Library/Caches
+                        fileURL = cachesDirectory
+                    }
+                }
+            #endif
+        #endif
+        fileURL = fileURL.appendingPath("swiftybeaver.log", isDirectory: false)
+        return fileURL
     }
 }
