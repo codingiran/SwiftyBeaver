@@ -12,9 +12,9 @@ import Foundation
 open class SwiftyBeaver {
 
     /// version string of framework
-    public static let version = "2.0.1"  // UPDATE ON RELEASE!
+    public static let version = "2.1.1"  // UPDATE ON RELEASE!
     /// build number of framework
-    public static let build = 2010 // version 1.6.2 -> 1620, UPDATE ON RELEASE!
+    public static let build = 2110 // version 1.6.2 -> 1620, UPDATE ON RELEASE!
 
     public enum Level: Int {
         case verbose = 0
@@ -22,6 +22,8 @@ open class SwiftyBeaver {
         case info = 2
         case warning = 3
         case error = 4
+        case critical = 5
+        case fault = 6
     }
 
     // a set of active destinations
@@ -142,9 +144,29 @@ open class SwiftyBeaver {
     open class func error(dest: String? = nil, _ message: @autoclosure () -> Any,
         file: String = #file, function: String = #function, line: Int = #line, context: Any? = nil) {
         #if swift(>=5)
-        custom(dest: dest, level: .error, message: message(), file: file, function: function, line: line, context: context)
+        custom(level: .error, message: message(), file: file, function: function, line: line, context: context)
         #else
-        custom(dest: dest, level: .error, message: message, file: file, function: function, line: line, context: context)
+        custom(level: .error, message: message, file: file, function: function, line: line, context: context)
+        #endif
+    }
+    
+    /// log something which will keep you awake at night (highest priority)
+    open class func critical(_ message: @autoclosure () -> Any,
+                             file: String = #file, function: String = #function, line: Int = #line, context: Any? = nil) {
+        #if swift(>=5)
+        custom(level: .critical, message: message(), file: file, function: function, line: line, context: context)
+        #else
+        custom(level: .critical, message: message, file: file, function: function, line: line, context: context)
+        #endif
+    }
+    
+    /// log something which will keep you awake at night (highest priority)
+    open class func fault(_ message: @autoclosure () -> Any,
+                          file: String = #file, function: String = #function, line: Int = #line, context: Any? = nil) {
+        #if swift(>=5)
+
+        #else
+
         #endif
     }
 
@@ -235,3 +257,8 @@ open class SwiftyBeaver {
         return f
     }
 }
+
+// MARK: Sendable
+
+@available(iOS 8.0, macOS 10.10, tvOS 9.0, watchOS 2.0, *)
+extension SwiftyBeaver.Level: Sendable {}

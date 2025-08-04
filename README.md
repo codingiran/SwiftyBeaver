@@ -6,10 +6,23 @@
 
 <br/>
 
-### During Development: Colored Logging to Xcode Console
+### During Development: Colored Logging to Xcode Console via OSLog API or Print
 
-<img src="https://cloud.githubusercontent.com/assets/564725/18608323/ac065a98-7ce6-11e6-8e1b-2a062d54a1d5.png" width="608">
+<img width="924" alt="image" src="https://github.com/SwiftyBeaver/SwiftyBeaver/assets/15070906/418a6a70-ced4-4000-91c3-8dc8fc235b7c">
 
+
+#### In Xcode 15
+```Swift
+
+// use Apple's fancy OSLog API:
+let console = ConsoleDestination()
+console.logPrintWay = .logger(subsystem: "Main", category: "UI")
+
+// or use good ol' "print" (which is the default):
+let console = ConsoleDestination()
+console.logPrintWay = .print
+```
+#### In Xcode 8
 [Learn more](http://docs.swiftybeaver.com/article/9-log-to-xcode-console) about colored logging to Xcode 8 Console with Swift 3, 4 & 5. For Swift 2.3 [use this Gist](https://gist.github.com/skreutzberger/7c396573796473ed1be2c6d15cafed34). **No need to hack Xcode 8 anymore** to get color. You can even customize the log level word (ATTENTION instead of ERROR maybe?), the general amount of displayed data and if you want to use the 💜s or replace them with something else 😉
 
 <br/>
@@ -138,6 +151,11 @@ let file = FileDestination()  // log to default swiftybeaver.log file
 console.format = "$DHH:mm:ss$d $L $M"
 // or use this for JSON output: console.format = "$J"
 
+// In Xcode 15, specifying the logging method as .logger to display color, subsystem, and category information in the console.(Relies on the OSLog API)
+console.logPrintWay = .logger(subsystem: "Main", category: "UI")
+// If you prefer not to use the OSLog API, you can use print instead.
+// console.logPrintWay = .print 
+
 // add the destinations to SwiftyBeaver
 log.addDestination(console)
 log.addDestination(file)
@@ -161,6 +179,28 @@ console.format = "$L: $M $X"
 log.debug("age", context: 123)  // "DEBUG: age 123"
 log.info("my data", context: [1, "a", 2]) // "INFO: my data [1, \"a\", 2]"
 
+```
+
+Alternatively, if you are using SwiftUI, consider using the following setup:
+
+```swift
+import SwiftyBeaver
+let logger = SwiftyBeaver.self
+
+@main
+struct yourApp: App {
+
+    init() {
+        let console = ConsoleDestination()
+        logger.addDestination(console)
+        // etc...
+    }
+
+    var body: some Scene {
+        WindowGroup {
+        }
+    }
+}
 ```
 
 <br/>
