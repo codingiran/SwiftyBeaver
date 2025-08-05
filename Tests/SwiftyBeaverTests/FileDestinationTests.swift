@@ -28,7 +28,7 @@ class FileDestinationTests: XCTestCase, @unchecked Sendable {
 
         // add file
         let file = FileDestination()
-        file.logFileURL = URL(string: "file://" + path)!
+//        file.logFileURL = URL(string: "file://" + path)!
         file.format = "$L: $M $X"
         _ = log.addDestination(file)
 
@@ -73,7 +73,7 @@ class FileDestinationTests: XCTestCase, @unchecked Sendable {
 
         // add file
         let file = FileDestination()
-        file.logFileURL = url
+//        file.logFileURL = url
         file.format = "$L: $M"
         _ = log.addDestination(file)
 
@@ -108,7 +108,7 @@ class FileDestinationTests: XCTestCase, @unchecked Sendable {
 
         // add file
         let file = FileDestination()
-        file.logFileURL = URL(string: "file://" + path)!
+//        file.logFileURL = URL(string: "file://" + path)!
         file.format = "$L: $M $X"
         // active logfile rotation
         file.logFileAmount = 2

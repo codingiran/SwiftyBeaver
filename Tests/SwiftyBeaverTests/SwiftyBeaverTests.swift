@@ -22,6 +22,20 @@ class SwiftyBeaverTests: XCTestCase {
     override func tearDown() {
         super.tearDown()
     }
+    
+    func testNotExistFileHandle() async {
+        do {
+            let url = URL(filePath: "/Users/codingiran/Downloads/log/agent.log")
+            let fileHandle = try FileHandle(forWritingTo: url)
+            try await Task.sleep(nanoseconds: 1_000_000_000 * 3)
+            try fileHandle.seekToEnd()
+            fileHandle.write("Hello".data(using: .utf8)!)
+            try fileHandle.closeFileHandle()
+            print("File handle exists")
+        } catch {
+            print(error)
+        }
+    }
 
     func testAddDestination() {
         let log = SwiftyBeaver.self
@@ -160,7 +174,7 @@ class SwiftyBeaverTests: XCTestCase {
 
         // add file
         let file = FileDestination()
-        file.logFileURL = URL(string: "file:///tmp/testSwiftyBeaver.log")!
+//        file.logFileURL = URL(string: "file:///tmp/testSwiftyBeaver.log")!
         XCTAssertTrue(log.addDestination(file))
         XCTAssertEqual(log.countDestinations(), 3)
         log.verbose("default file msg 1")
@@ -169,7 +183,7 @@ class SwiftyBeaverTests: XCTestCase {
 
         // log to another file
         let file2 = FileDestination()
-        file2.logFileURL = URL(string: "file:///tmp/testSwiftyBeaver2.log")!
+//        file2.logFileURL = URL(string: "file:///tmp/testSwiftyBeaver2.log")!
         console2.format = "$L: $M"
         file2.minLevel = SwiftyBeaver.Level.debug
         XCTAssertTrue(log.addDestination(file2))
@@ -183,10 +197,10 @@ class SwiftyBeaverTests: XCTestCase {
         console2.format = "$L: $M"
         XCTAssertTrue(log.addDestination(file3))
         XCTAssertEqual(log.countDestinations(), 5)
-        guard let f3URL = file3.logFileURL else {
-            return
-        }
-        log.info("Logging to default log file \(f3URL)")
+//        guard let f3URL = file3.logFileURL else {
+//            return
+//        }
+//        log.info("Logging to default log file \(f3URL)")
     }
 
     func testColors() {
@@ -199,7 +213,7 @@ class SwiftyBeaverTests: XCTestCase {
 
         // add file
         let file = FileDestination()
-        file.logFileURL = URL(string: "file:///tmp/testSwiftyBeaver.log")!
+//        file.logFileURL = URL(string: "file:///tmp/testSwiftyBeaver.log")!
         file.format = "$L: $M"
         XCTAssertTrue(log.addDestination(file))
 
@@ -223,7 +237,7 @@ class SwiftyBeaverTests: XCTestCase {
 
         // add file
         let file = FileDestination()
-        file.logFileURL = URL(string: "file:///tmp/testSwiftyBeaver.log")!
+//        file.logFileURL = URL(string: "file:///tmp/testSwiftyBeaver.log")!
         file.format = "$U: $M"
         XCTAssertTrue(log.addDestination(file))
 

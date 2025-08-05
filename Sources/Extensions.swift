@@ -77,7 +77,7 @@ extension FileHandle {
 
 extension URL {
     init(fileURLPath path: String, isDirectory: Bool) {
-        if #available(macOS 13.0, iOS 16.0, tvOS 16.0, watchOS 9.0, *) {
+        if #available(macOS 13.0, iOS 16.0, tvOS 16.0, watchOS 9.0, visionOS 1.0, *) {
             self.init(filePath: path, directoryHint: isDirectory ? .isDirectory : .notDirectory)
         } else {
             self.init(fileURLWithPath: path)
@@ -85,7 +85,7 @@ extension URL {
     }
 
     func appendingPath(_ path: String, isDirectory: Bool) -> URL {
-        if #available(macOS 13.0, iOS 16.0, tvOS 16.0, watchOS 9.0, *) {
+        if #available(macOS 13.0, iOS 16.0, tvOS 16.0, watchOS 9.0, visionOS 1.0, *) {
             return self.appending(path: path, directoryHint: isDirectory ? .isDirectory : .notDirectory)
         } else {
             return self.appendingPathComponent(path, isDirectory: isDirectory)
@@ -93,11 +93,67 @@ extension URL {
     }
 
     static func cachesDirectory() -> URL {
-        if #available(macOS 13.0, iOS 16.0, tvOS 16.0, watchOS 9.0, *) {
+        if #available(macOS 13.0, iOS 16.0, tvOS 16.0, watchOS 9.0, visionOS 1.0, *) {
             return URL.cachesDirectory
         } else {
             let cachesDirectoryPath = NSSearchPathForDirectoriesInDomains(.cachesDirectory, .userDomainMask, true).first ?? "\(NSHomeDirectory())/Library/Caches"
             return URL(fileURLPath: cachesDirectoryPath, isDirectory: true)
         }
     }
+
+    func urlPath(percentEncoded: Bool = true) -> String {
+        if #available(macOS 13.0, iOS 16.0, tvOS 16.0, watchOS 9.0, visionOS 1.0, *) {
+            return self.path(percentEncoded: percentEncoded)
+        } else {
+            return self.path
+        }
+    }
+}
+
+public extension FileHandle {
+    @discardableResult
+    func seekToFileEnd() throws -> UInt64 {
+        if #available(macOS 10.15.4, iOS 13.4, watchOS 6.2, tvOS 13.4, visionOS 1.0, *) {
+            return try seekToEnd()
+        } else {
+            return seekToEndOfFile()
+        }
+    }
+
+    func syncFileHandle() throws {
+        if #available(macOS 10.15, iOS 13.0, watchOS 6.0, tvOS 13.0, visionOS 1.0, *) {
+            try synchronize()
+        } else {
+            self.synchronizeFile()
+        }
+    }
+
+    func closeFileHandle() throws {
+        if #available(macOS 10.15, iOS 13.0, watchOS 6.0, tvOS 13.0, visionOS 1.0, *) {
+            try close()
+        } else {
+            self.closeFile()
+        }
+    }
+
+    func writeData(_ data: Data) throws {
+        if #available(macOS 10.15.4, iOS 13.4, watchOS 6.2, tvOS 13.4, visionOS 1.0,*) {
+            try write(contentsOf: data)
+        } else {
+            self.write(data)
+        }
+    }
+}
+
+public extension FileManager {
+    func fileExists(at url: URL) -> Bool {
+        let path = url.urlPath(percentEncoded: false)
+        return self.fileExists(atPath: path)
+    }
+
+    func fileExists(at url: URL, isDirectory: UnsafeMutablePointer<ObjCBool>?) -> Bool {
+        let path = url.urlPath(percentEncoded: false)
+        return self.fileExists(atPath: path, isDirectory: isDirectory)
+    }
+    
 }
