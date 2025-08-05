@@ -18,10 +18,10 @@ class FileRotationChecker {
     // MARK: - Configuration
 
     /// Minimum number of writes before checking file size
-    private let minCheckInterval: Int = 5
+    private let minCheckInterval: Int = 10
 
     /// Maximum number of writes before forcing a file size check
-    private let maxCheckInterval: Int = 500
+    private let maxCheckInterval: Int = 1000
 
     /// Safety factor to ensure we check before reaching the limit (Golden ratio)
     private let safetyFactor: Double = 0.618
