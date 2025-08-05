@@ -79,17 +79,21 @@ class FileRotationChecker {
     }
 
     /// Determines if a file size check should be performed
-    /// - Parameter estimatedWriteSize: Estimated size of the log entry being written
-    /// - Returns: true if file size should be checked
-    func shouldCheckFileSize(estimatedWriteSize: Int64) -> Bool {
+    func shouldCheckFileSize() -> Bool {
         return withLock {
             nextCheckInterval -= 1
-            writesSinceLastCheck += 1
+            return nextCheckInterval <= 0
+        }
+    }
 
+    /// Records a write operation
+    /// - Parameter estimatedWriteSize: Estimated size of the log entry being written
+    func recordWrite(estimatedWriteSize: Int64) {
+        withLock {
             // Update estimated current size
             estimatedFileSize += estimatedWriteSize
-
-            return nextCheckInterval <= 0
+            // Update write counter
+            writesSinceLastCheck += 1
         }
     }
 
@@ -97,16 +101,14 @@ class FileRotationChecker {
     /// - Parameters:
     ///   - actualFileSize: The actual file size from file system
     ///   - maxFileSize: Maximum allowed file size before rotation
-    ///   - estimatedWriteSize: Estimated size of the log entry being written
-    func updateWithActualSize(_ actualFileSize: Int64, maxFileSize: Int64, estimatedWriteSize: Int64) {
+    func updateWithActualSize(_ actualFileSize: Int64, maxFileSize: Int64) {
         withLock {
             // Calculate estimation error (difference between estimated and actual)
-            let estimatedFileSizeBeforeWrite = estimatedFileSize - estimatedWriteSize
-            let sizeDifference = actualFileSize - estimatedFileSizeBeforeWrite
+            let sizeDifference = actualFileSize - estimatedFileSize
             let estimationError = abs(sizeDifference)
 
             // Update estimation error tracking
-            let errorThreshold = Double(estimatedFileSizeBeforeWrite) / 10.0 // 10% of estimated size
+            let errorThreshold = Double(estimatedFileSize) / 10.0 // 10% of estimated size
             if Double(estimationError) > errorThreshold {
                 consecutiveEstimationErrors += 1
             } else {
@@ -115,7 +117,7 @@ class FileRotationChecker {
 
             // Calculate actual size increase since last check
             let sizeIncrease = actualFileSize - lastActualFileSize
-            updateAverageSize(sizeIncrease: sizeIncrease)
+            updateAverageSize(sizeIncrease: sizeIncrease, estimatedWriteSize: estimatedFileSize)
 
             // Update our tracking variables
             lastActualFileSize = actualFileSize
@@ -151,14 +153,17 @@ class FileRotationChecker {
     // MARK: - Private Methods
 
     /// Updates the moving average of size increases
-    private func updateAverageSize(sizeIncrease: Int64) {
-        guard writesSinceLastCheck > 0 else { return }
+    private func updateAverageSize(sizeIncrease: Int64, estimatedWriteSize: Int64) {
+        // If the size increase is 0 or the number of writes since last check is 0, means no write has been made since last check
+        guard writesSinceLastCheck > 0, sizeIncrease > 0 else { return }
 
         // Use precise floating-point calculation
         let averageIncreasePerWrite = Double(sizeIncrease) / Double(writesSinceLastCheck)
 
         // Add to recent samples
-        recentSizeSamples.append(averageIncreasePerWrite)
+        if averageIncreasePerWrite > 0 {
+            recentSizeSamples.append(averageIncreasePerWrite)
+        }
 
         // Keep only recent samples
         if recentSizeSamples.count > maxSampleCount {
@@ -177,7 +182,11 @@ class FileRotationChecker {
 
     /// Calculates the next check interval based on current state
     private func calculateNextCheckInterval(currentSize: Int64, maxSize: Int64) {
-        let remainingSize = maxSize - currentSize
+        // Calculate based on remaining space and average write size
+        guard perAverageSize > 0 else {
+            nextCheckInterval = minCheckInterval
+            return
+        }
 
         // Handle degraded estimation case
         if consecutiveEstimationErrors > 3 {
@@ -186,11 +195,7 @@ class FileRotationChecker {
             return
         }
 
-        // Calculate based on remaining space and average write size
-        guard perAverageSize > 0 else {
-            nextCheckInterval = minCheckInterval
-            return
-        }
+        let remainingSize: Int64 = maxSize - currentSize
 
         let estimatedWritesRemaining = Double(remainingSize) / Double(perAverageSize)
         let safeInterval = Int(estimatedWritesRemaining * safetyFactor)

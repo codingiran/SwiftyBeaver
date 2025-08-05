@@ -36,8 +36,11 @@ extension FileDestination {
 
         // Use smart rotation checker for file URL rotation
         let estimatedSize = FileRotationChecker.estimateWriteSize(str)
-        let shouldCheck = checker.shouldCheckFileSize(estimatedWriteSize: estimatedSize)
-        guard shouldCheck else { return }
+        let shouldCheck = checker.shouldCheckFileSize()
+        guard shouldCheck else {
+            checker.recordWrite(estimatedWriteSize: estimatedSize)
+            return
+        }
 
         guard fileManager.fileExists(at: url) else { return }
 
@@ -45,7 +48,7 @@ extension FileDestination {
         let actualSize = getCurrentFileSize(at: url)
 
         // Update rotation checker with actual size
-        checker.updateWithActualSize(actualSize, maxFileSize: Int64(logFileMaxSize), estimatedWriteSize: estimatedSize)
+        checker.updateWithActualSize(actualSize, maxFileSize: Int64(logFileMaxSize))
 
         // Do file rotation if needed
         guard actualSize > Int64(logFileMaxSize) else { return }
@@ -63,14 +66,17 @@ extension FileDestination {
 
         // Use smart rotation checker for file handle rotation
         let estimatedSize = FileRotationChecker.estimateWriteSize(str)
-        let shouldCheck = checker.shouldCheckFileSize(estimatedWriteSize: estimatedSize)
-        guard shouldCheck else { return }
+        let shouldCheck = checker.shouldCheckFileSize()
+        guard shouldCheck else {
+            checker.recordWrite(estimatedWriteSize: estimatedSize)
+            return
+        }
 
         // Get actual file size
         let actualSize = Int64(fileHandle.getSize())
 
         // Update rotation checker with actual size
-        checker.updateWithActualSize(actualSize, maxFileSize: Int64(logFileMaxSize), estimatedWriteSize: estimatedSize)
+        checker.updateWithActualSize(actualSize, maxFileSize: Int64(logFileMaxSize))
 
         // Do file truncation if needed
         guard actualSize > Int64(logFileMaxSize) else { return }
