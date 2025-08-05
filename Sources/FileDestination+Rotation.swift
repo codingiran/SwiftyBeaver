@@ -45,7 +45,7 @@ extension FileDestination {
         let actualSize = getCurrentFileSize(at: url)
 
         // Update rotation checker with actual size
-        checker.updateWithActualSize(actualSize, maxFileSize: Int64(logFileMaxSize))
+        checker.updateWithActualSize(actualSize, maxFileSize: Int64(logFileMaxSize), estimatedWriteSize: estimatedSize)
 
         // Do file rotation if needed
         guard actualSize > Int64(logFileMaxSize) else { return }
@@ -70,7 +70,7 @@ extension FileDestination {
         let actualSize = Int64(fileHandle.getSize())
 
         // Update rotation checker with actual size
-        checker.updateWithActualSize(actualSize, maxFileSize: Int64(logFileMaxSize))
+        checker.updateWithActualSize(actualSize, maxFileSize: Int64(logFileMaxSize), estimatedWriteSize: estimatedSize)
 
         // Do file truncation if needed
         guard actualSize > Int64(logFileMaxSize) else { return }

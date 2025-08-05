@@ -97,14 +97,16 @@ class FileRotationChecker {
     /// - Parameters:
     ///   - actualFileSize: The actual file size from file system
     ///   - maxFileSize: Maximum allowed file size before rotation
-    func updateWithActualSize(_ actualFileSize: Int64, maxFileSize: Int64) {
+    ///   - estimatedWriteSize: Estimated size of the log entry being written
+    func updateWithActualSize(_ actualFileSize: Int64, maxFileSize: Int64, estimatedWriteSize: Int64) {
         withLock {
             // Calculate estimation error (difference between estimated and actual)
-            let sizeDifference = actualFileSize - estimatedFileSize
+            let estimatedFileSizeBeforeWrite = estimatedFileSize - estimatedWriteSize
+            let sizeDifference = actualFileSize - estimatedFileSizeBeforeWrite
             let estimationError = abs(sizeDifference)
 
             // Update estimation error tracking
-            let errorThreshold = Double(estimatedFileSize) / 10.0 // 10% of estimated size
+            let errorThreshold = Double(estimatedFileSizeBeforeWrite) / 10.0 // 10% of estimated size
             if Double(estimationError) > errorThreshold {
                 consecutiveEstimationErrors += 1
             } else {
