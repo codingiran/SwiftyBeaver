@@ -8,6 +8,7 @@
 //
 
 import Foundation
+import os.lock
 
 // MARK: - FileRotationChecker
 
@@ -27,6 +28,11 @@ class FileRotationChecker {
 
     /// Maximum number of recent samples to keep for average calculation
     private let maxSampleCount: Int = 5
+
+    // MARK: - Lock
+
+    /// Thread-safe lock for protecting internal state
+    private var lock = os_unfair_lock()
 
     // MARK: - State
 
@@ -65,17 +71,26 @@ class FileRotationChecker {
 
     // MARK: - Public Methods
 
+    /// Executes the given block while holding the internal lock
+    private func withLock<T>(_ block: () throws -> T) rethrows -> T {
+        os_unfair_lock_lock(&lock)
+        defer { os_unfair_lock_unlock(&lock) }
+        return try block()
+    }
+
     /// Determines if a file size check should be performed
     /// - Parameter estimatedWriteSize: Estimated size of the log entry being written
     /// - Returns: true if file size should be checked
     func shouldCheckFileSize(estimatedWriteSize: Int64) -> Bool {
-        nextCheckInterval -= 1
-        writesSinceLastCheck += 1
+        return withLock {
+            nextCheckInterval -= 1
+            writesSinceLastCheck += 1
 
-        // Update estimated current size
-        estimatedFileSize += estimatedWriteSize
+            // Update estimated current size
+            estimatedFileSize += estimatedWriteSize
 
-        return nextCheckInterval <= 0
+            return nextCheckInterval <= 0
+        }
     }
 
     /// Updates the checker with actual file size after a check
@@ -83,31 +98,33 @@ class FileRotationChecker {
     ///   - actualFileSize: The actual file size from file system
     ///   - maxFileSize: Maximum allowed file size before rotation
     func updateWithActualSize(_ actualFileSize: Int64, maxFileSize: Int64) {
-        // Calculate estimation error (difference between estimated and actual)
-        let sizeDifference = actualFileSize - estimatedFileSize
-        let estimationError = abs(sizeDifference)
+        withLock {
+            // Calculate estimation error (difference between estimated and actual)
+            let sizeDifference = actualFileSize - estimatedFileSize
+            let estimationError = abs(sizeDifference)
 
-        // Update estimation error tracking
-        let errorThreshold = Double(estimatedFileSize) / 10.0 // 10% of estimated size
-        if Double(estimationError) > errorThreshold {
-            consecutiveEstimationErrors += 1
-        } else {
-            consecutiveEstimationErrors = 0
+            // Update estimation error tracking
+            let errorThreshold = Double(estimatedFileSize) / 10.0 // 10% of estimated size
+            if Double(estimationError) > errorThreshold {
+                consecutiveEstimationErrors += 1
+            } else {
+                consecutiveEstimationErrors = 0
+            }
+
+            // Calculate actual size increase since last check
+            let sizeIncrease = actualFileSize - lastActualFileSize
+            updateAverageSize(sizeIncrease: sizeIncrease)
+
+            // Update our tracking variables
+            lastActualFileSize = actualFileSize
+            estimatedFileSize = actualFileSize // Reset estimation to actual value
+
+            // Calculate next check interval
+            calculateNextCheckInterval(currentSize: actualFileSize, maxSize: maxFileSize)
+
+            // Reset write counter
+            writesSinceLastCheck = 0
         }
-
-        // Calculate actual size increase since last check
-        let sizeIncrease = actualFileSize - lastActualFileSize
-        updateAverageSize(sizeIncrease: sizeIncrease)
-
-        // Update our tracking variables
-        lastActualFileSize = actualFileSize
-        estimatedFileSize = actualFileSize // Reset estimation to actual value
-
-        // Calculate next check interval
-        calculateNextCheckInterval(currentSize: actualFileSize, maxSize: maxFileSize)
-
-        // Reset write counter
-        writesSinceLastCheck = 0
     }
 
     /// Estimates the size of a log entry
@@ -116,6 +133,17 @@ class FileRotationChecker {
     static func estimateWriteSize(_ logString: String) -> Int64 {
         // UTF-8 encoding + newline character
         return Int64(logString.utf8.count + 1)
+    }
+
+    /// Thread-safe reset of all internal state
+    func reset() {
+        withLock {
+            nextCheckInterval = 1
+            writesSinceLastCheck = 0
+            consecutiveEstimationErrors = 0
+            recentSizeSamples.removeAll()
+            perAverageSize = 0
+        }
     }
 
     // MARK: - Private Methods

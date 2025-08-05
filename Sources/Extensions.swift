@@ -88,7 +88,7 @@ extension URL {
         if #available(macOS 13.0, iOS 16.0, tvOS 16.0, watchOS 9.0, visionOS 1.0, *) {
             return self.appending(path: path, directoryHint: isDirectory ? .isDirectory : .notDirectory)
         } else {
-            return self.appendingPathComponent(path, isDirectory: isDirectory)
+            return appendingPathComponent(path, isDirectory: isDirectory)
         }
     }
 
@@ -105,12 +105,38 @@ extension URL {
         if #available(macOS 13.0, iOS 16.0, tvOS 16.0, watchOS 9.0, visionOS 1.0, *) {
             return self.path(percentEncoded: percentEncoded)
         } else {
-            return self.path
+            return path
         }
     }
 }
 
 public extension FileHandle {
+    /// Writes data to the file handle.
+    /// - Parameters:
+    ///   - data: The data to write.
+    ///   - syncAfterEachWrite: Whether to sync the file handle after each write.
+    ///   - closeWhenFinish: Whether to close the file handle when the write is finished.
+    /// - Returns: True if the write was successful, false otherwise.
+    @discardableResult
+    func writeDataToFileEnd(_ data: Data,
+                            syncAfterEachWrite: Bool = true,
+                            closeWhenFinish: Bool = true) throws -> Bool
+    {
+        #if os(Linux)
+            return true
+        #else
+            try seekToFileEnd()
+            try writeData(data)
+            if syncAfterEachWrite {
+                try syncFileHandle()
+            }
+            if closeWhenFinish {
+                try closeFileHandle()
+            }
+            return true
+        #endif
+    }
+
     @discardableResult
     func seekToFileEnd() throws -> UInt64 {
         if #available(macOS 10.15.4, iOS 13.4, watchOS 6.2, tvOS 13.4, visionOS 1.0, *) {
@@ -124,7 +150,7 @@ public extension FileHandle {
         if #available(macOS 10.15, iOS 13.0, watchOS 6.0, tvOS 13.0, visionOS 1.0, *) {
             try synchronize()
         } else {
-            self.synchronizeFile()
+            synchronizeFile()
         }
     }
 
@@ -132,7 +158,7 @@ public extension FileHandle {
         if #available(macOS 10.15, iOS 13.0, watchOS 6.0, tvOS 13.0, visionOS 1.0, *) {
             try close()
         } else {
-            self.closeFile()
+            closeFile()
         }
     }
 
@@ -140,7 +166,7 @@ public extension FileHandle {
         if #available(macOS 10.15.4, iOS 13.4, watchOS 6.2, tvOS 13.4, visionOS 1.0,*) {
             try write(contentsOf: data)
         } else {
-            self.write(data)
+            write(data)
         }
     }
 }
@@ -148,12 +174,11 @@ public extension FileHandle {
 public extension FileManager {
     func fileExists(at url: URL) -> Bool {
         let path = url.urlPath(percentEncoded: false)
-        return self.fileExists(atPath: path)
+        return fileExists(atPath: path)
     }
 
     func fileExists(at url: URL, isDirectory: UnsafeMutablePointer<ObjCBool>?) -> Bool {
         let path = url.urlPath(percentEncoded: false)
-        return self.fileExists(atPath: path, isDirectory: isDirectory)
+        return fileExists(atPath: path, isDirectory: isDirectory)
     }
-    
 }

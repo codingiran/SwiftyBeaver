@@ -50,11 +50,11 @@ open class FileDestination: BaseDestination, @unchecked Sendable {
     /// Lock for thread-safe file handle access.
     private lazy var fileHandleLock = os_unfair_lock()
 
-    /// Lock for thread-safe rotation checker access.
-    lazy var rotationCheckerLock = os_unfair_lock()
+    /// Smart file URL rotation checker for performance optimization.
+    var urlRotationChecker: FileRotationChecker?
 
-    /// Smart file rotation checker for performance optimization.
-    var rotationChecker: FileRotationChecker?
+    /// Smart file handle rotation checker for performance optimization.
+    var handleRotationChecker: FileRotationChecker?
 
     /// Controls whether to use NSFileCoordinator for file access coordination.
     /// Set to true for document-based apps, app extensions, or iCloud scenarios (default).
@@ -160,70 +160,7 @@ open class FileDestination: BaseDestination, @unchecked Sendable {
         }
     }
 
-    /// Performs the actual file write operation to the logFileURL
-    private func performFileWrite(data: Data, toFileURL url: URL, useCoordination: Bool) {
-        let fileWriteOperation: (URL) -> Void = { [weak self] url in
-            guard let self else { return }
-            guard let fileHandle = fileHandleForWriting(at: url) else {
-                print("SwiftyBeaver could not create write file handle at \(url).")
-                return
-            }
-            do {
-                try write(data: data, toFileHandle: fileHandle)
-            } catch {
-                print("SwiftyBeaver File Destination could not write to file \(url).")
-            }
-        }
-
-        if useCoordination || asynchronously {
-            let coordinator = NSFileCoordinator(filePresenter: nil)
-            var error: NSError?
-            coordinator.coordinate(writingItemAt: url, error: &error) { url in
-                fileWriteOperation(url)
-            }
-            if let error = error {
-                print("Failed writing file with error: \(String(describing: error))")
-            }
-        } else {
-            fileWriteOperation(url)
-        }
-    }
-
-    private func fileHandleForWriting(at url: URL) -> FileHandle? {
-        if let fileHandle = try? FileHandle(forWritingTo: url) {
-            return fileHandle
-        }
-        // FileHandle create failed, maybe it's not exist
-        do {
-            try createLogFile(url)
-            return try? FileHandle(forWritingTo: url)
-        } catch {
-            return nil
-        }
-    }
-
-    /// Performs the actual file write operation to the logFileHandle
-    private func performFileWrite(data: Data, toFileHandle fileHandle: FileHandle) {
-        writeData(data, toLogFileHandle: fileHandle)
-    }
-
-    @discardableResult
-    private func write(data: Data, toFileHandle fileHandle: FileHandle, closeWhenFinish: Bool = true) throws -> Bool {
-        #if os(Linux)
-            return true
-        #else
-            try fileHandle.seekToFileEnd()
-            try fileHandle.writeData(data)
-            if syncAfterEachWrite {
-                try fileHandle.syncFileHandle()
-            }
-            if closeWhenFinish {
-                try fileHandle.closeFileHandle()
-            }
-            return true
-        #endif
-    }
-
+    /// Creates a log file at the given URL.
     private func createLogFile(_ logFileURL: URL) throws {
         let logFilePath = logFileURL.urlPath(percentEncoded: false)
         guard !fileManager.fileExists(atPath: logFilePath) else { return }
@@ -288,13 +225,60 @@ public extension FileDestination {
     }
 }
 
-// MARK: - LogFileHandle
+// MARK: - LogFile URL
 
 extension FileDestination {
-    private func writeData(_ data: Data, toLogFileHandle fileHandle: FileHandle) {
+    /// Performs the actual file write operation to the logFileURL
+    private func performFileWrite(data: Data, toFileURL url: URL, useCoordination: Bool) {
+        let fileWriteOperation: (URL) -> Void = { [weak self] url in
+            guard let self else { return }
+            guard let fileHandle = fileHandleForWriting(at: url) else {
+                print("SwiftyBeaver could not create write file handle at \(url).")
+                return
+            }
+            do {
+                try fileHandle.writeDataToFileEnd(data, syncAfterEachWrite: syncAfterEachWrite, closeWhenFinish: true)
+            } catch {
+                print("SwiftyBeaver File Destination could not write to file \(url).")
+            }
+        }
+
+        if useCoordination || asynchronously {
+            let coordinator = NSFileCoordinator(filePresenter: nil)
+            var error: NSError?
+            coordinator.coordinate(writingItemAt: url, error: &error) { url in
+                fileWriteOperation(url)
+            }
+            if let error = error {
+                print("Failed writing file with error: \(String(describing: error))")
+            }
+        } else {
+            fileWriteOperation(url)
+        }
+    }
+
+    private func fileHandleForWriting(at url: URL) -> FileHandle? {
+        if let fileHandle = try? FileHandle(forWritingTo: url) {
+            return fileHandle
+        }
+        // FileHandle create failed, maybe it's not exist
+        do {
+            try createLogFile(url)
+            return try? FileHandle(forWritingTo: url)
+        } catch {
+            return nil
+        }
+    }
+}
+
+// MARK: - Log File Handle
+
+extension FileDestination {
+    /// Performs the actual file write operation to the logFileHandle
+    private func performFileWrite(data: Data, toFileHandle fileHandle: FileHandle) {
         withFileHandleLock {
             do {
-                try self.write(data: data, toFileHandle: fileHandle, closeWhenFinish: false)
+                try fileHandle.writeDataToFileEnd(data, syncAfterEachWrite: syncAfterEachWrite, closeWhenFinish: false)
             } catch {
                 print("SwiftyBeaver File Destination could not write to logFileHandle: \(String(describing: error)).")
             }

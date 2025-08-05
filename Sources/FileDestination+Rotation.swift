@@ -28,17 +28,15 @@ extension FileDestination {
         guard logFileAmount > 1 else { return }
 
         // Initialize rotation checker if needed
-        if rotationChecker == nil {
-            initializeRotationChecker(url: url)
+        if urlRotationChecker == nil {
+            initializeURLRotationChecker(url: url)
         }
 
-        guard let checker = rotationChecker else { return }
+        guard let checker = urlRotationChecker else { return }
 
         // Use smart rotation checker for file URL rotation
         let estimatedSize = FileRotationChecker.estimateWriteSize(str)
-        let shouldCheck = withRotationCheckerLock {
-            checker.shouldCheckFileSize(estimatedWriteSize: estimatedSize)
-        }
+        let shouldCheck = checker.shouldCheckFileSize(estimatedWriteSize: estimatedSize)
         guard shouldCheck else { return }
 
         guard fileManager.fileExists(at: url) else { return }
@@ -47,9 +45,7 @@ extension FileDestination {
         let actualSize = getCurrentFileSize(at: url)
 
         // Update rotation checker with actual size
-        withRotationCheckerLock {
-            checker.updateWithActualSize(actualSize, maxFileSize: Int64(logFileMaxSize))
-        }
+        checker.updateWithActualSize(actualSize, maxFileSize: Int64(logFileMaxSize))
 
         // Do file rotation if needed
         guard actualSize > Int64(logFileMaxSize) else { return }
@@ -61,27 +57,20 @@ extension FileDestination {
         validateLogFileHandle(fileHandle)
     }
 
-    /// Executes the given block while holding the rotation checker lock.
-    func withRotationCheckerLock<T>(_ block: () throws -> T) rethrows -> T {
-        os_unfair_lock_lock(&rotationCheckerLock)
-        defer { os_unfair_lock_unlock(&rotationCheckerLock) }
-        return try block()
-    }
-
     /// Initializes the rotation checker with current file size
-    private func initializeRotationChecker(url: URL) {
-        withRotationCheckerLock {
-            if rotationChecker == nil {
-                let currentSize = getCurrentFileSize(at: url)
-                rotationChecker = FileRotationChecker(initialFileSize: currentSize)
-            }
+    private func initializeURLRotationChecker(url: URL) {
+        if urlRotationChecker == nil {
+            let currentSize = getCurrentFileSize(at: url)
+            urlRotationChecker = FileRotationChecker(initialFileSize: currentSize)
         }
     }
 
     /// Resets the rotation checker when configuration changes
     func resetRotationChecker() {
-        withRotationCheckerLock {
-            rotationChecker = nil
+        if let checker = urlRotationChecker {
+            checker.reset()
+        } else {
+            urlRotationChecker = nil
         }
     }
 
