@@ -54,7 +54,35 @@ extension FileDestination {
 
     /// Validates the log file handle and performs rotation if needed
     private func validateLogFileHandle(_ fileHandle: FileHandle, str: String) {
-        validateLogFileHandle(fileHandle)
+        // Initialize rotation checker if needed
+        if fileHandleRotationChecker == nil {
+            initializeFileHandleRotationChecker(fileHandle: fileHandle)
+        }
+
+        guard let checker = fileHandleRotationChecker else { return }
+
+        // Use smart rotation checker for file handle rotation
+        let estimatedSize = FileRotationChecker.estimateWriteSize(str)
+        let shouldCheck = checker.shouldCheckFileSize(estimatedWriteSize: estimatedSize)
+        guard shouldCheck else { return }
+
+        // Get actual file size
+        let actualSize = Int64(fileHandle.getSize())
+
+        // Update rotation checker with actual size
+        checker.updateWithActualSize(actualSize, maxFileSize: Int64(logFileMaxSize))
+
+        // Do file truncation if needed
+        guard actualSize > Int64(logFileMaxSize) else { return }
+
+        // Perform the actual truncation
+        withFileHandleLock {
+            do {
+                try fileHandle.truncateFile(at: 0)
+            } catch {
+                print("SwiftyBeaver File Destination could not truncate logFileHandle: \(String(describing: error)).")
+            }
+        }
     }
 
     /// Initializes the rotation checker with current file size
@@ -65,12 +93,26 @@ extension FileDestination {
         }
     }
 
+    /// Initializes the file handle rotation checker with current file size
+    private func initializeFileHandleRotationChecker(fileHandle: FileHandle) {
+        if fileHandleRotationChecker == nil {
+            let currentSize = Int64(fileHandle.getSize())
+            fileHandleRotationChecker = FileRotationChecker(initialFileSize: currentSize)
+        }
+    }
+
     /// Resets the rotation checker when configuration changes
     func resetRotationChecker() {
         if let checker = fileURLRotationChecker {
             checker.reset()
         } else {
             fileURLRotationChecker = nil
+        }
+
+        if let checker = fileHandleRotationChecker {
+            checker.reset()
+        } else {
+            fileHandleRotationChecker = nil
         }
     }
 
@@ -127,26 +169,5 @@ private extension FileDestination {
         // The index is appended to the file name, to preserve the original extension.
         fileUrl.deletingPathExtension()
             .appendingPathExtension("\(index).\(fileUrl.pathExtension)")
-    }
-}
-
-// MARK: - LogFileHandle Rotation
-
-extension FileDestination {
-    /// Validates and handles file handle rotation/truncation
-    func validateLogFileHandle(_ fileHandle: FileHandle) {
-        withFileHandleLock {
-            let logFileSize = fileHandle.getSize()
-            guard logFileSize > self.logFileMaxSize else { return }
-            if #available(iOS 13.0, watchOS 6.0, tvOS 13.0, macOS 10.15, *) {
-                do {
-                    try fileHandle.truncate(atOffset: 0)
-                } catch {
-                    print("SwiftyBeaver File Destination could not truncate logFileHandle: \(String(describing: error)).")
-                }
-            } else {
-                fileHandle.truncateFile(atOffset: 0)
-            }
-        }
     }
 }

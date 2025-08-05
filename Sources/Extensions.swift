@@ -73,6 +73,14 @@ extension FileHandle {
         }
         return Int(inodeInfo.st_size)
     }
+
+    func truncateFile(at offset: UInt64) throws {
+        if #available(macOS 10.15, iOS 13.0, watchOS 6.0, tvOS 13.0, visionOS 1.0, *) {
+            try truncate(atOffset: offset)
+        } else {
+            truncateFile(atOffset: offset)
+        }
+    }
 }
 
 extension URL {
