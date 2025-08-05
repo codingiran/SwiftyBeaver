@@ -48,7 +48,13 @@ open class FileDestination: BaseDestination, @unchecked Sendable {
     }
 
     /// Lock for thread-safe file handle access.
-    private var fileHandleLock = os_unfair_lock()
+    private lazy var fileHandleLock = os_unfair_lock()
+
+    /// Lock for thread-safe rotation checker access.
+    lazy var rotationCheckerLock = os_unfair_lock()
+
+    /// Smart file rotation checker for performance optimization.
+    var rotationChecker: FileRotationChecker?
 
     /// Controls whether to use NSFileCoordinator for file access coordination.
     /// Set to true for document-based apps, app extensions, or iCloud scenarios (default).
@@ -58,14 +64,27 @@ open class FileDestination: BaseDestination, @unchecked Sendable {
     // LOGFILE ROTATION
     // ho many bytes should a logfile have until it is rotated?
     // default is 5 MB. Just is used if logFileAmount > 1
-    public var logFileMaxSize = (5 * 1024 * 1024)
+    public var logFileMaxSize = (5 * 1024 * 1024) {
+        didSet {
+            if logFileMaxSize != oldValue {
+                resetRotationChecker()
+            }
+        }
+    }
+
     // Number of log files used in rotation, default is 1 which deactivates file rotation
-    public var logFileAmount = 1
+    public var logFileAmount = 1 {
+        didSet {
+            if logFileAmount != oldValue {
+                resetRotationChecker()
+            }
+        }
+    }
 
     override public var defaultHashValue: Int { return 2 }
 
     /// Internal shared file manager.
-    private let fileManager = FileManager.default
+    let fileManager = FileManager.default
 
     /// Initializes a new FileDestination with the given file write mode and label.
     /// - Parameters:
@@ -109,39 +128,12 @@ open class FileDestination: BaseDestination, @unchecked Sendable {
         let formattedString = super.send(level, msg: msg, thread: thread, file: file, function: function, line: line, context: context)
 
         if let str = formattedString {
+            // validate the file size and perform rotation if needed
             validateSaveFile(str: str)
+            // save the string to the file
+            saveToFile(str: str)
         }
         return formattedString
-    }
-
-    // check if filesize is bigger than wanted and if yes then rotate them
-    func validateSaveFile(str: String) {
-        // check if file rotation is enabled and if the log file exists
-        if logFileAmount > 1, let url = logFileURL {
-            let filePath = url.urlPath(percentEncoded: false)
-            if fileManager.fileExists(atPath: filePath) {
-                do {
-                    // Get file size
-                    let attr = try fileManager.attributesOfItem(atPath: filePath)
-                    // Do file rotation
-                    if let fileSize = attr[FileAttributeKey.size] as? UInt64,
-                       fileSize > logFileMaxSize
-                    {
-                        rotateFile(url)
-                    }
-                } catch {
-                    print("validateSaveFile error: \(error)")
-                }
-            }
-        }
-
-        // check if the log file handle exists and if it does, validate it
-        if let logFileHandle {
-            validateLogFileHandle(logFileHandle)
-        }
-
-        // save the string to the file
-        saveToFile(str: str)
     }
 
     /// Appends a string as line to a file.
@@ -273,7 +265,7 @@ public extension FileDestination {
         case hybrid(URL, FileHandle)
     }
 
-    private var logFileURL: URL? {
+    internal var logFileURL: URL? {
         switch fileWriteMode {
         case let .fileURL(url):
             return url
@@ -284,7 +276,7 @@ public extension FileDestination {
         }
     }
 
-    private var logFileHandle: FileHandle? {
+    internal var logFileHandle: FileHandle? {
         switch fileWriteMode {
         case .fileURL:
             return nil
@@ -296,63 +288,9 @@ public extension FileDestination {
     }
 }
 
-// MARK: - File Rotation
-
-private extension FileDestination {
-    func rotateFile(_ fileUrl: URL) {
-        let filePath = fileUrl.path
-        let lastIndex = (logFileAmount - 1)
-        let firstIndex = 1
-        do {
-            for index in stride(from: lastIndex, through: firstIndex, by: -1) {
-                let oldFile = makeRotatedFileUrl(fileUrl, index: index).path
-
-                if fileManager.fileExists(atPath: oldFile) {
-                    if index == lastIndex {
-                        // Delete the last file
-                        try fileManager.removeItem(atPath: oldFile)
-                    } else {
-                        // Move the current file to next index
-                        let newFile = makeRotatedFileUrl(fileUrl, index: index + 1).path
-                        try fileManager.moveItem(atPath: oldFile, toPath: newFile)
-                    }
-                }
-            }
-
-            // Finally, move the current file
-            let newFile = makeRotatedFileUrl(fileUrl, index: firstIndex).path
-            try fileManager.moveItem(atPath: filePath, toPath: newFile)
-        } catch {
-            print("rotateFile error: \(error)")
-        }
-    }
-
-    func makeRotatedFileUrl(_ fileUrl: URL, index: Int) -> URL {
-        // The index is appended to the file name, to preserve the original extension.
-        fileUrl.deletingPathExtension()
-            .appendingPathExtension("\(index).\(fileUrl.pathExtension)")
-    }
-}
-
 // MARK: - LogFileHandle
 
 extension FileDestination {
-    private func validateLogFileHandle(_ fileHandle: FileHandle) {
-        withFileHandleLock {
-            let logFileSize = fileHandle.getSize()
-            guard logFileSize > self.logFileMaxSize else { return }
-            if #available(iOS 13.0, watchOS 6.0, tvOS 13.0, macOS 10.15, *) {
-                do {
-                    try fileHandle.truncate(atOffset: 0)
-                } catch {
-                    print("SwiftyBeaver File Destination could not truncate logFileHandle: \(String(describing: error)).")
-                }
-            } else {
-                fileHandle.truncateFile(atOffset: 0)
-            }
-        }
-    }
-
     private func writeData(_ data: Data, toLogFileHandle fileHandle: FileHandle) {
         withFileHandleLock {
             do {
@@ -364,7 +302,7 @@ extension FileDestination {
     }
 
     /// Executes the given block while holding the file handle lock.
-    private func withFileHandleLock<T>(_ block: () throws -> T) rethrows -> T {
+    func withFileHandleLock<T>(_ block: () throws -> T) rethrows -> T {
         os_unfair_lock_lock(&fileHandleLock)
         defer { os_unfair_lock_unlock(&fileHandleLock) }
         return try block()
