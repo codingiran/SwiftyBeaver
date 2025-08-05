@@ -51,10 +51,10 @@ open class FileDestination: BaseDestination, @unchecked Sendable {
     private lazy var fileHandleLock = os_unfair_lock()
 
     /// Smart file URL rotation checker for performance optimization.
-    var urlRotationChecker: FileRotationChecker?
+    var fileURLRotationChecker: FileRotationChecker?
 
     /// Smart file handle rotation checker for performance optimization.
-    var handleRotationChecker: FileRotationChecker?
+    var fileHandleRotationChecker: FileRotationChecker?
 
     /// Controls whether to use NSFileCoordinator for file access coordination.
     /// Set to true for document-based apps, app extensions, or iCloud scenarios (default).

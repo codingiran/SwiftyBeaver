@@ -28,11 +28,11 @@ extension FileDestination {
         guard logFileAmount > 1 else { return }
 
         // Initialize rotation checker if needed
-        if urlRotationChecker == nil {
+        if fileURLRotationChecker == nil {
             initializeURLRotationChecker(url: url)
         }
 
-        guard let checker = urlRotationChecker else { return }
+        guard let checker = fileURLRotationChecker else { return }
 
         // Use smart rotation checker for file URL rotation
         let estimatedSize = FileRotationChecker.estimateWriteSize(str)
@@ -59,18 +59,18 @@ extension FileDestination {
 
     /// Initializes the rotation checker with current file size
     private func initializeURLRotationChecker(url: URL) {
-        if urlRotationChecker == nil {
+        if fileURLRotationChecker == nil {
             let currentSize = getCurrentFileSize(at: url)
-            urlRotationChecker = FileRotationChecker(initialFileSize: currentSize)
+            fileURLRotationChecker = FileRotationChecker(initialFileSize: currentSize)
         }
     }
 
     /// Resets the rotation checker when configuration changes
     func resetRotationChecker() {
-        if let checker = urlRotationChecker {
+        if let checker = fileURLRotationChecker {
             checker.reset()
         } else {
-            urlRotationChecker = nil
+            fileURLRotationChecker = nil
         }
     }
 
