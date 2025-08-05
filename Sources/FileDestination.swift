@@ -118,7 +118,7 @@ open class FileDestination: BaseDestination, @unchecked Sendable {
     func validateSaveFile(str: String) {
         // check if file rotation is enabled and if the log file exists
         if logFileAmount > 1, let url = logFileURL {
-            let filePath = url.path
+            let filePath = url.urlPath(percentEncoded: false)
             if fileManager.fileExists(atPath: filePath) {
                 do {
                     // Get file size
@@ -170,44 +170,43 @@ open class FileDestination: BaseDestination, @unchecked Sendable {
 
     /// Performs the actual file write operation to the logFileURL
     private func performFileWrite(data: Data, toFileURL url: URL, useCoordination: Bool) {
-        let fileWriteOperation: () -> Void = { [weak self] in
+        let fileWriteOperation: (URL) -> Void = { [weak self] url in
             guard let self else { return }
-
+            guard let fileHandle = fileHandleForWriting(at: url) else {
+                print("SwiftyBeaver could not create write file handle at \(url).")
+                return
+            }
             do {
-                if fileManager.fileExists(atPath: url.path) == false {
-                    let directoryURL = url.deletingLastPathComponent()
-                    if fileManager.fileExists(atPath: directoryURL.path) == false {
-                        try fileManager.createDirectory(at: directoryURL, withIntermediateDirectories: true)
-                    }
-                    _ = fileManager.createFile(atPath: url.path, contents: nil)
-
-                    #if os(iOS) || os(watchOS)
-                        if #available(iOS 10.0, watchOS 3.0, *) {
-                            var attributes = try fileManager.attributesOfItem(atPath: url.path)
-                            attributes[FileAttributeKey.protectionKey] = FileProtectionType.none
-                            try fileManager.setAttributes(attributes, ofItemAtPath: url.path)
-                        }
-                    #endif
-                }
-
-                let fileHandle = try FileHandle(forWritingTo: url)
                 try write(data: data, toFileHandle: fileHandle)
             } catch {
                 print("SwiftyBeaver File Destination could not write to file \(url).")
             }
         }
 
-        if useCoordination {
+        if useCoordination || asynchronously {
             let coordinator = NSFileCoordinator(filePresenter: nil)
             var error: NSError?
-            coordinator.coordinate(writingItemAt: url, error: &error) { _ in
-                fileWriteOperation()
+            coordinator.coordinate(writingItemAt: url, error: &error) { url in
+                fileWriteOperation(url)
             }
             if let error = error {
                 print("Failed writing file with error: \(String(describing: error))")
             }
         } else {
-            fileWriteOperation()
+            fileWriteOperation(url)
+        }
+    }
+
+    private func fileHandleForWriting(at url: URL) -> FileHandle? {
+        if let fileHandle = try? FileHandle(forWritingTo: url) {
+            return fileHandle
+        }
+        // FileHandle create failed, maybe it's not exist
+        do {
+            try createLogFile(url)
+            return try? FileHandle(forWritingTo: url)
+        } catch {
+            return nil
         }
     }
 
@@ -221,38 +220,45 @@ open class FileDestination: BaseDestination, @unchecked Sendable {
         #if os(Linux)
             return true
         #else
-            if #available(iOS 13.4, watchOS 6.2, tvOS 13.4, macOS 10.15.4, *) {
-                try fileHandle.seekToEnd()
-                try fileHandle.write(contentsOf: data)
-                if syncAfterEachWrite {
-                    try fileHandle.synchronize()
-                }
-                if closeWhenFinish {
-                    try fileHandle.close()
-                }
-            } else {
-                fileHandle.seekToEndOfFile()
-                fileHandle.write(data)
-                if syncAfterEachWrite {
-                    fileHandle.synchronizeFile()
-                }
-                if closeWhenFinish {
-                    fileHandle.closeFile()
-                }
+            try fileHandle.seekToFileEnd()
+            try fileHandle.writeData(data)
+            if syncAfterEachWrite {
+                try fileHandle.syncFileHandle()
+            }
+            if closeWhenFinish {
+                try fileHandle.closeFileHandle()
             }
             return true
+        #endif
+    }
+
+    private func createLogFile(_ logFileURL: URL) throws {
+        let logFilePath = logFileURL.urlPath(percentEncoded: false)
+        guard !fileManager.fileExists(atPath: logFilePath) else { return }
+        let directoryURL = logFileURL.deletingLastPathComponent()
+        if !fileManager.fileExists(at: directoryURL) {
+            try fileManager.createDirectory(at: directoryURL, withIntermediateDirectories: true)
+        }
+        _ = fileManager.createFile(atPath: logFilePath, contents: nil)
+
+        #if os(iOS) || os(watchOS)
+            if #available(iOS 10.0, watchOS 3.0, *) {
+                var attributes = try fileManager.attributesOfItem(atPath: logFilePath)
+                attributes[FileAttributeKey.protectionKey] = FileProtectionType.none
+                try fileManager.setAttributes(attributes, ofItemAtPath: logFilePath)
+            }
         #endif
     }
 
     /// deletes log file.
     /// returns true if file was removed or does not exist, false otherwise
     public func deleteLogFile() -> Bool {
-        guard let url = logFileURL, fileManager.fileExists(atPath: url.path) == true else { return true }
+        guard let logFileURL, fileManager.fileExists(at: logFileURL) else { return true }
         do {
-            try fileManager.removeItem(at: url)
+            try fileManager.removeItem(at: logFileURL)
             return true
         } catch {
-            print("SwiftyBeaver File Destination could not remove file \(url).")
+            print("SwiftyBeaver File Destination could not remove file \(logFileURL).")
             return false
         }
     }
@@ -380,7 +386,7 @@ extension FileDestination {
                 if let appName = Bundle.main.object(forInfoDictionaryKey: "CFBundleExecutable") as? String {
                     do {
                         fileURL = fileURL.appendingPath(appName, isDirectory: true)
-                        if !FileManager.default.fileExists(atPath: fileURL.path) {
+                        if !FileManager.default.fileExists(at: fileURL) {
                             try FileManager.default.createDirectory(at: fileURL, withIntermediateDirectories: true, attributes: nil)
                         }
                     } catch {
