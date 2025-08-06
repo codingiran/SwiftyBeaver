@@ -127,7 +127,7 @@ open class FileDestination: BaseDestination, @unchecked Sendable {
     {
         let formattedString = super.send(level, msg: msg, thread: thread, file: file, function: function, line: line, context: context)
 
-        if let str = "Hello World Hello WorldHello WorldHello WorldHello WorldHello WorldHello WorldHello WorldHello WorldHello WorldHello WorldHello WorldHello WorldHello World - *" as? String,
+        if let str = formattedString,
            let data = (str + "\n").data(using: .utf8)
         {
             // validate the file size and perform rotation if needed
