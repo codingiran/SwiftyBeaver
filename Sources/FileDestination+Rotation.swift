@@ -2,9 +2,7 @@
 //  FileDestination+Rotation.swift
 //  SwiftyBeaver
 //
-//  Created by Sebastian Kreutzberger on 05.12.15.
-//  Copyright © 2015 Sebastian Kreutzberger
-//  Some rights reserved: http://opensource.org/licenses/MIT
+//  Created by CodingIran on 2025/8/5.
 //
 
 import Foundation
