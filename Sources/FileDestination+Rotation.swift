@@ -64,10 +64,10 @@ extension FileDestination {
         guard let checker = fileHandleRotationChecker else { return }
 
         defer {
-            let estimatedFileSize = "\(checker.estimatedFileSize)"
-            let lastActualFileSize = "\(checker.lastActualFileSize)"
-            let actualSize = "\(Int64(fileHandle.getSize()))"
-            os_log("FileDestination, estimatedFileSize: %{public}@, lastActualFileSize: %{public}@, actualSize: %{public}@", estimatedFileSize, lastActualFileSize, actualSize)
+            let estimatedFileSize = checker.estimatedFileSize
+            let actualSize = Int64(fileHandle.getSize())
+            let delta = estimatedFileSize - actualSize
+            os_log("FileDestination, estimatedFileSize: %{public}@, actualSize: %{public}@, delta: %{public}@", "\(estimatedFileSize)", "\(actualSize)", "\(delta)")
         }
 
         // Use smart rotation checker for file handle rotation
