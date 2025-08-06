@@ -48,7 +48,7 @@ open class FileDestination: BaseDestination, @unchecked Sendable {
     }
 
     /// Lock for thread-safe file handle access.
-    private lazy var fileHandleLock = os_unfair_lock()
+    private lazy var fileHandleLock = UnfairLock()
 
     /// Smart file URL rotation checker for performance optimization.
     var fileURLRotationChecker: FileRotationChecker?
@@ -274,6 +274,16 @@ extension FileDestination {
 // MARK: - Log File Handle
 
 extension FileDestination {
+    /// Wraps the body in a lock if asynchronously is true, otherwise just calls the body directly
+    func withFileHandleLock<R>(_ body: @Sendable () throws -> R) rethrows -> R where R: Sendable {
+        guard asynchronously else {
+            // If not asynchronously, we can just call the body directly
+            // DispatchQueue.sync will ensure thread safety
+            return try body()
+        }
+        return try fileHandleLock.withLock(body)
+    }
+
     /// Performs the actual file write operation to the logFileHandle
     private func performFileWrite(data: Data, toFileHandle fileHandle: FileHandle) {
         withFileHandleLock {
@@ -283,13 +293,6 @@ extension FileDestination {
                 print("SwiftyBeaver File Destination could not write to logFileHandle: \(String(describing: error)).")
             }
         }
-    }
-
-    /// Executes the given block while holding the file handle lock.
-    func withFileHandleLock<T>(_ block: () throws -> T) rethrows -> T {
-        os_unfair_lock_lock(&fileHandleLock)
-        defer { os_unfair_lock_unlock(&fileHandleLock) }
-        return try block()
     }
 }
 

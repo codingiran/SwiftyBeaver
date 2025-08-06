@@ -14,7 +14,7 @@ import os.lock
 
 /// A smart file rotation checker that adaptively determines when to check file size
 /// to optimize performance while ensuring timely log rotation.
-class FileRotationChecker {
+final class FileRotationChecker: @unchecked Sendable {
     // MARK: - Configuration
 
     /// Minimum number of writes before checking file size
@@ -32,7 +32,7 @@ class FileRotationChecker {
     // MARK: - Lock
 
     /// Thread-safe lock for protecting internal state
-    private var lock = os_unfair_lock()
+    private let lock = UnfairLock()
 
     // MARK: - State
 
@@ -71,16 +71,9 @@ class FileRotationChecker {
 
     // MARK: - Public Methods
 
-    /// Executes the given block while holding the internal lock
-    private func withLock<T>(_ block: () throws -> T) rethrows -> T {
-        os_unfair_lock_lock(&lock)
-        defer { os_unfair_lock_unlock(&lock) }
-        return try block()
-    }
-
     /// Determines if a file size check should be performed
     func shouldCheckFileSize() -> Bool {
-        return withLock {
+        return lock.withLock {
             nextCheckInterval -= 1
             return nextCheckInterval <= 0
         }
@@ -89,7 +82,7 @@ class FileRotationChecker {
     /// Records a write operation
     /// - Parameter estimatedWriteSize: Estimated size of the log entry being written
     func recordWrite(estimatedWriteSize: Int64) {
-        withLock {
+        lock.withLock {
             // Update estimated current size
             estimatedFileSize += estimatedWriteSize
             // Update write counter
@@ -102,7 +95,7 @@ class FileRotationChecker {
     ///   - actualFileSize: The actual file size from file system
     ///   - maxFileSize: Maximum allowed file size before rotation
     func updateWithActualSize(_ actualFileSize: Int64, maxFileSize: Int64) {
-        withLock {
+        lock.withLock {
             // Calculate estimation error (difference between estimated and actual)
             let sizeDifference = actualFileSize - estimatedFileSize
             let estimationError = abs(sizeDifference)
@@ -141,7 +134,7 @@ class FileRotationChecker {
 
     /// Thread-safe reset of all internal state
     func reset() {
-        withLock {
+        lock.withLock {
             nextCheckInterval = 1
             writesSinceLastCheck = 0
             consecutiveEstimationErrors = 0
