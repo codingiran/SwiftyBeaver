@@ -127,20 +127,15 @@ open class FileDestination: BaseDestination, @unchecked Sendable {
     {
         let formattedString = super.send(level, msg: msg, thread: thread, file: file, function: function, line: line, context: context)
 
-        if let str = formattedString {
+        if let str = formattedString,
+           let data = (str + "\n").data(using: .utf8)
+        {
             // validate the file size and perform rotation if needed
-            validateSaveFile(str: str)
-            // save the string to the file
-            saveToFile(str: str)
+            validateSaveFile(data: data)
+            // save the string data to the file
+            write(data: data)
         }
         return formattedString
-    }
-
-    /// Appends a string as line to a file.
-    func saveToFile(str: String) {
-        let line = str + "\n"
-        guard let data = line.data(using: .utf8) else { return }
-        write(data: data)
     }
 
     /// Writes data to the log file.

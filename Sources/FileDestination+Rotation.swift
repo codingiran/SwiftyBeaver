@@ -13,17 +13,17 @@ import os.log
 
 extension FileDestination {
     /// Validates file size and performs rotation if needed
-    func validateSaveFile(str: String) {
+    func validateSaveFile(data: Data) {
         if let logFileURL {
-            validateLogFileURL(logFileURL, str: str)
+            validateLogFileURL(logFileURL, data: data)
         }
         if let logFileHandle {
-            validateLogFileHandle(logFileHandle, str: str)
+            validateLogFileHandle(logFileHandle, data: data)
         }
     }
 
     /// Validates the log file URL and performs rotation if needed
-    private func validateLogFileURL(_ url: URL, str: String) {
+    private func validateLogFileURL(_ url: URL, data: Data) {
         guard logFileAmount > 1 else { return }
 
         // Initialize rotation checker if needed
@@ -34,7 +34,7 @@ extension FileDestination {
         guard let checker = fileURLRotationChecker else { return }
 
         // Use smart rotation checker for file URL rotation
-        let estimatedSize = FileRotationChecker.estimateWriteSize(str)
+        let estimatedSize = FileRotationChecker.estimateWriteSize(data)
         let shouldCheck = checker.shouldCheckFileSize()
         guard shouldCheck else {
             checker.recordWrite(estimatedWriteSize: estimatedSize)
@@ -55,7 +55,7 @@ extension FileDestination {
     }
 
     /// Validates the log file handle and performs rotation if needed
-    private func validateLogFileHandle(_ fileHandle: FileHandle, str: String) {
+    private func validateLogFileHandle(_ fileHandle: FileHandle, data: Data) {
         // Initialize rotation checker if needed
         if fileHandleRotationChecker == nil {
             initializeFileHandleRotationChecker(fileHandle: fileHandle)
@@ -66,13 +66,13 @@ extension FileDestination {
         defer {
             let estimatedFileSize = checker.estimatedFileSize
             let actualSize = Int64(fileHandle.getSize())
-            let estimatedSize = FileRotationChecker.estimateWriteSize(str)
+            let estimatedSize = FileRotationChecker.estimateWriteSize(data)
             let delta = estimatedFileSize - actualSize
             os_log("FileDestination, estimatedFileSize: %{public}@, actualSize: %{public}@, estimatedSize: %{public}@, delta: %{public}@", "\(estimatedFileSize)", "\(actualSize)", "\(estimatedSize)", "\(delta)")
         }
 
         // Use smart rotation checker for file handle rotation
-        let estimatedSize = FileRotationChecker.estimateWriteSize(str)
+        let estimatedSize = FileRotationChecker.estimateWriteSize(data)
         let shouldCheck = checker.shouldCheckFileSize()
         guard shouldCheck else {
             checker.recordWrite(estimatedWriteSize: estimatedSize)

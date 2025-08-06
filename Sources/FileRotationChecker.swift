@@ -127,9 +127,8 @@ final class FileRotationChecker: @unchecked Sendable {
     /// Estimates the size of a log entry
     /// - Parameter logString: The log string to be written
     /// - Returns: Estimated size in bytes
-    static func estimateWriteSize(_ logString: String) -> Int64 {
-        // UTF-8 encoding + newline character
-        return Int64(logString.utf8.count + 1)
+    static func estimateWriteSize(_ data: Data) -> Int64 {
+        Int64(data.count)
     }
 
     /// Thread-safe reset of all internal state
