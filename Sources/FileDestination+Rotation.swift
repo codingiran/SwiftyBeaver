@@ -7,7 +7,6 @@
 
 import Foundation
 import os.lock
-import os.log
 
 // MARK: - File Rotation Methods
 
