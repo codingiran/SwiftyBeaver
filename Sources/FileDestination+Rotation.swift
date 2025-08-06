@@ -64,6 +64,8 @@ extension FileDestination {
         guard let checker = fileHandleRotationChecker else { return }
 
         defer {
+            let log = String(data: data, encoding: .utf8)
+            os_log("FileDestination, real log: %{public}@", log ?? "")
             let estimatedFileSize = checker.estimatedFileSize
             let actualSize = Int64(fileHandle.getSize())
             let estimatedSize = FileRotationChecker.estimateWriteSize(data)
