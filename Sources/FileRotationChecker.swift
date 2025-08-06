@@ -37,10 +37,10 @@ final class FileRotationChecker: @unchecked Sendable {
     // MARK: - State
 
     /// Estimated current file size (accumulated from write operations)
-    private var estimatedFileSize: Int64
+    var estimatedFileSize: Int64
 
     /// Last actual file size from file system check
-    private var lastActualFileSize: Int64
+    var lastActualFileSize: Int64
 
     /// Number of writes remaining before next check
     private var nextCheckInterval: Int
