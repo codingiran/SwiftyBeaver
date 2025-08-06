@@ -27,8 +27,7 @@ class FileDestinationTests: XCTestCase, @unchecked Sendable {
         deleteFile(path: path)
 
         // add file
-        let file = FileDestination()
-//        file.logFileURL = URL(string: "file://" + path)!
+        let file = FileDestination(logFileURL: URL(string: "file://" + path))
         file.format = "$L: $M $X"
         _ = log.addDestination(file)
 
@@ -72,8 +71,7 @@ class FileDestinationTests: XCTestCase, @unchecked Sendable {
         guard let url = fileURL else { return }
 
         // add file
-        let file = FileDestination()
-//        file.logFileURL = url
+        let file = FileDestination(logFileURL: url)
         file.format = "$L: $M"
         _ = log.addDestination(file)
 
@@ -107,8 +105,7 @@ class FileDestinationTests: XCTestCase, @unchecked Sendable {
         deleteFile(path: "/tmp/\(UUID().uuidString)/testSBF.log.1")
 
         // add file
-        let file = FileDestination()
-//        file.logFileURL = URL(string: "file://" + path)!
+        let file = FileDestination(logFileURL: URL(string: "file://" + path))
         file.format = "$L: $M $X"
         // active logfile rotation
         file.logFileAmount = 2
