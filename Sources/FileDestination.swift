@@ -64,7 +64,7 @@ open class FileDestination: BaseDestination, @unchecked Sendable {
     // LOGFILE ROTATION
     // ho many bytes should a logfile have until it is rotated?
     // default is 5 MB. Just is used if logFileAmount > 1
-    public var logFileMaxSize = (5 * 1024 * 1024) {
+    public var logFileMaxSize: Int64 = (5 * 1024 * 1024) {
         didSet {
             if logFileMaxSize != oldValue {
                 resetRotationChecker()

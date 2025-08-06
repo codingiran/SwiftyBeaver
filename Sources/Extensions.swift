@@ -66,12 +66,12 @@ extension FileHandle {
         return (inodeInfo.st_mode & S_IFMT) == S_IFDIR
     }
 
-    func getSize() -> Int {
+    func getSize() -> Int64 {
         var inodeInfo = stat()
         guard fstat(fileDescriptor, &inodeInfo) == 0 else {
             return 0
         }
-        return Int(inodeInfo.st_size)
+        return Int64(inodeInfo.st_size)
     }
 
     func truncateFile(at offset: UInt64) throws {

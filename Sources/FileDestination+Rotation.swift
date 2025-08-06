@@ -47,10 +47,10 @@ extension FileDestination {
         let actualSize = getCurrentFileSize(at: url)
 
         // Update rotation checker with actual size
-        checker.updateWithActualSize(actualSize, maxFileSize: Int64(logFileMaxSize))
+        checker.updateWithActualSize(actualSize, maxFileSize: logFileMaxSize)
 
         // Do file rotation if needed
-        guard actualSize > Int64(logFileMaxSize) else { return }
+        guard actualSize > logFileMaxSize else { return }
         rotateFile(url)
     }
 
@@ -63,16 +63,6 @@ extension FileDestination {
 
         guard let checker = fileHandleRotationChecker else { return }
 
-        defer {
-            let log = String(data: data, encoding: .utf8)
-            os_log("FileDestination, real log: %{public}@", log ?? "")
-            let estimatedFileSize = checker.estimatedFileSize
-            let actualSize = Int64(fileHandle.getSize())
-            let estimatedSize = FileRotationChecker.estimateWriteSize(data)
-            let delta = estimatedFileSize - actualSize
-            os_log("FileDestination, estimatedFileSize: %{public}@, actualSize: %{public}@, estimatedSize: %{public}@, delta: %{public}@", "\(estimatedFileSize)", "\(actualSize)", "\(estimatedSize)", "\(delta)")
-        }
-
         // Use smart rotation checker for file handle rotation
         let estimatedSize = FileRotationChecker.estimateWriteSize(data)
         let shouldCheck = checker.shouldCheckFileSize()
@@ -82,13 +72,13 @@ extension FileDestination {
         }
 
         // Get actual file size
-        let actualSize = Int64(fileHandle.getSize())
+        let actualSize = fileHandle.getSize()
 
         // Update rotation checker with actual size
-        checker.updateWithActualSize(actualSize, maxFileSize: Int64(logFileMaxSize))
+        checker.updateWithActualSize(actualSize, maxFileSize: logFileMaxSize)
 
         // Do file truncation if needed
-        guard actualSize > Int64(logFileMaxSize) else { return }
+        guard actualSize > logFileMaxSize else { return }
 
         // Perform the actual truncation
         withFileHandleLock {
@@ -111,7 +101,7 @@ extension FileDestination {
     /// Initializes the file handle rotation checker with current file size
     private func initializeFileHandleRotationChecker(fileHandle: FileHandle) {
         if fileHandleRotationChecker == nil {
-            let currentSize = Int64(fileHandle.getSize())
+            let currentSize = fileHandle.getSize()
             fileHandleRotationChecker = FileRotationChecker(initialFileSize: currentSize)
         }
     }
